@@ -1,3 +1,7 @@
+Requires python2.6, matplotlib, numpy and nflgame.
+pip install matplotlib numpy nflgame
+https://pypi.python.org/pypi/nflgame
+
 This script uses a Metropolis-Hastings algorithm to optimize a set of picks for the pick'em NFL football game.
 The pick'em game has a simple set of rules:
 
@@ -19,7 +23,7 @@ The pick'em game has a simple set of rules:
 
   9) If you do not submit a pick for a week, you will lose 7 points off of your score.
 
-The algorithm involves two separate projections. First, how is each team expected to matchup against their opponents each week (predicted spread), and second—given knowledge of future spreads—what is the optimal set of unique picks which optimizes the expected total spread?
+The algorithm involves two separate projections. First, how each team is expected to match up against their opponents each week (predicted spread), and second—given knowledge of future spreads—what is the optimal set of unique picks which optimizes the expected total spread?
 
 To project team spreads, the script calculates points scored and points allowed for each team averaged over the previous six games. These offensive and defensive ratings are then used to create a simple spread estimate for a given matchup.
 
