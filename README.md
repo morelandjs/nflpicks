@@ -1,3 +1,5 @@
+Track team scores: [http://pickem-points.herokuapp.com/](https://pickem-points.herokuapp.com/)
+
 Requires python2.6, matplotlib, numpy and [nflgame](http://github.com/BurntSushi/nflgame).
 
 `pip install matplotlib numpy nflgame`
