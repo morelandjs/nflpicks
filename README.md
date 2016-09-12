@@ -1,5 +1,3 @@
-Track team scores: [http://pickem-points.herokuapp.com/](https://pickem-points.herokuapp.com/)
-
 Requires python2.6, matplotlib, numpy and [nflgame](http://github.com/BurntSushi/nflgame).
 
 `pip install matplotlib numpy nflgame`
@@ -24,3 +22,6 @@ To project team spreads, the script calculates points scored and points allowed 
 Once the spreads are calculated for all games in the season, a Metropolis-Hastings algorithm is used to optimize the set of team picks. The algorithm first chooses a random week, and then considers changing the team chosen for that week to a random replacement. If this chosen replacement is a team which has already been chosen, the two picks are swapped. Candidate picks which improve the overall expected spread are accepted with 100% probability and candidate picks which lower the expected spread are accepted with a reduced proability, P ~ exp(-(score1 - score2)/T), where T is an effective noise parameter or 'temperature'. As the simulation progresses, the temperature is cooled to reduce noise and settle into the basin of the overall optimal solution.
 
 The code returns a set of weekly picks and corresponding opponents for each week. It also provides an estimate of the expected score.
+
+Track team scores: [http://pickem-points.herokuapp.com/](https://pickem-points.herokuapp.com/)
+
