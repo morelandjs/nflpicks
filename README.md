@@ -1,6 +1,6 @@
-Requires python2.6, matplotlib, numpy and [nflgame](http://github.com/BurntSushi/nflgame).
+Requires python2.6, matplotlib, numpy and [nflgame](http://github.com/BurntSushi/nflgame) which can be installed with pip,
 
-`pip install matplotlib numpy nflgame`
+`pip install nflgame`
 
 This script uses a Metropolis-Hastings algorithm to optimize a set of picks for the pick'em NFL football game.
 The pick'em game has a simple set of rules:
