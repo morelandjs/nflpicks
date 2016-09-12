@@ -1,4 +1,4 @@
-Requires python2.6, matplotlib, numpy and [nflgame](https://pypi.python.org/pypi/nflgame).
+Requires python2.6, matplotlib, numpy and [nflgame](http://github.com/BurntSushi/nflgame).
 
 `pip install matplotlib numpy nflgame`
 
