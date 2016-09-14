@@ -2,9 +2,15 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
-import random
 import nflgame
+import random
+import h5py
+import os
+from itertools import chain
 from math import exp
+
+# specify which picks you've already made
+prev_picks = ['SEA']
 
 # team schedule, '@' denotes away games
 matchups = dict(
@@ -73,27 +79,52 @@ matchups = dict(
         WAS = ['PIT', 'DAL', '@NYG', 'CLE', '@BAL', 'PHI', '@DET', '@CIN',
               'BYE', 'MIN', 'GB', '@DAL', '@ARI', '@PHI', 'CAR', '@CHI', 'NYG'],
 )
+teams = list(matchups)
+nteams = len(teams)
+nweeks = 17
 
 # measure home field advantage
-last5years = nflgame.games([2010, 2011, 2012, 2013, 2014, 2015])
-hca = np.mean([g.score_home - g.score_away for g in last5years]) 
+#last5years = nflgame.games([2010, 2011, 2012, 2013, 2014, 2015])
+#hca = np.mean([g.score_home - g.score_away for g in last5years]) 
+hca = 2.4
+
+
+# get the score for a given game
+def score(g, team):
+    if g.is_home(team):
+        return g.score_home, g.score_away
+    else:
+        return g.score_away, g.score_home
+
+
+# store team score histories in an hdf5 file
+def cache_scores():
+    with h5py.File('scores.hdf', 'w') as f:
+        for team in teams:
+            if team == 'LA':
+                team_old, team_new = 'STL', 'LA'
+            elif team == 'JAC':
+                team_old, team_new = 'JAC', 'JAX'
+            else:
+                team_old, team_new = team, team
+            scores = np.array([score(g, team) for g in
+                    chain(nflgame.games(2015, home=team_old, away=team_old),
+                    nflgame.games(2016, home=team_new, away=team_new))])
+            f.create_dataset(team, data=scores)
+    return
+
 
 # calculate offensive and defensive rating
 def rating(team):
-    try:
-        home_games = nflgame.games(2015, home=team) 
-        away_games = nflgame.games(2015, away=team) 
-    except TypeError:
-        team = 'STL'
-        home_games = nflgame.games(2015, home=team) 
-        away_games = nflgame.games(2015, away=team) 
-
-    ORtg = np.mean([g.score_home for g in home_games]
-            + [g.score_away for g in away_games])
-    DRtg = np.mean([g.score_away for g in home_games]
-            + [g.score_home for g in away_games])
-
+    if not os.path.exists('scores.hdf'):
+        cache_scores()
+    with h5py.File('scores.hdf', 'r') as f:
+        scores = f[team]
+        weights = np.exp(-np.arange(len(scores))[::-1]/6.)
+        ORtg = np.average(scores[:,0], weights=weights)
+        DRtg = np.average(scores[:,1], weights=weights)
     return ORtg, DRtg
+
 
 # approximate spread from offensive and defensive ratings
 def plus_minus(team):
@@ -114,45 +145,10 @@ def plus_minus(team):
 
     return score
 
-# generate predicted spreads (plus-minus) for every game
-spreads = dict(
-    patriots    = plus_minus('NE'),
-    bills       = plus_minus('BUF'),
-    dolphins    = plus_minus('MIA'),
-    jets        = plus_minus('NYJ'),
-    bengals     = plus_minus('CIN'),
-    steelers    = plus_minus('PIT'),
-    ravens      = plus_minus('BAL'),
-    browns      = plus_minus('CLE'),
-    colts       = plus_minus('IND'),
-    texans      = plus_minus('HOU'),
-    titans      = plus_minus('TEN'),
-    jaguars     = plus_minus('JAC'),
-    broncos     = plus_minus('DEN'),
-    chargers    = plus_minus('SD'),
-    chiefs      = plus_minus('KC'),
-    raiders     = plus_minus('OAK'),
-    cowboys     = plus_minus('DAL'),
-    giants      = plus_minus('NYG'),
-    eagles      = plus_minus('PHI'),
-    redskins    = plus_minus('WAS'),
-    packers     = plus_minus('GB'),
-    vikings     = plus_minus('MIN'),
-    lions       = plus_minus('DET'),
-    bears       = plus_minus('CHI'),
-    saints      = plus_minus('NO'),
-    falcons     = plus_minus('ATL'),
-    panthers    = plus_minus('CAR'),
-    buccaneers  = plus_minus('TB'),
-    seahawks    = plus_minus('SEA'),
-    rams        = plus_minus('LA'),
-    niners      = plus_minus('SF'),
-    cardinals   = plus_minus('ARI'),
-)
 
-teams = list(spreads)
-nteams = len(teams)
-nweeks = 17
+# generate predicted spreads (plus-minus) for every game
+spreads = {team : plus_minus(team) for team in teams}
+
 
 # calculate total expected spread for a set of picks
 def total_spread(picks):
@@ -200,15 +196,15 @@ def make_picks(npicks=1000):
 
 def main():
     # repeat the MCMC simulation using a large number of steps each time
-    for picks in make_picks(100000):
+    for picks in make_picks(1000000):
         mypicks = picks 
 
     # print predictions
     for week, team in enumerate(mypicks):
         team = nflgame.standard_team(team)
         opp = matchups[team][week]
-        col_width = 5
-        print "".join(entry.ljust(col_width) for entry in [team, opp])
+        print "".join(entry.ljust(6) for entry in
+                [team, opp, str(spreads[team][week])])
 
     # print total expected score
     print(total_spread(mypicks))
