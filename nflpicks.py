@@ -9,8 +9,17 @@ import os
 from itertools import chain
 from math import exp
 
-# specify which picks you've already made
-prev_picks = ['SEA']
+'''
+Directions:
+
+1) Specify number of weeks played in the current season
+2) Delete scores.hdf (caches score data and should be regenerated every week)
+3) Comment out the teams in the matchup dictionary which you've already picked
+4) Run the script ./nflpicks.py
+'''
+
+# current week of the season
+weeks_played = 1
 
 # team schedule, '@' denotes away games
 matchups = dict(
@@ -68,8 +77,8 @@ matchups = dict(
               'DAL', '@CLE', '@IND', 'NYG', '@BUF', '@CIN', 'BAL', 'CLE'],
         SD  = ['@KC', 'JAC', '@IND', 'NO', '@OAK', 'DEN', '@ATL', '@DEN',
               'TEN', 'MIA', 'BYE', '@HOU', 'TB', '@CAR', 'OAK', '@CLE', 'KC'],
-        SEA = ['MIA', '@LA', 'SF', '@NYJ', 'BYE', 'ATL', '@ARI', '@NO', 'BUF',
-              '@NE', 'PHI', '@TB', 'CAR', '@GB', 'LA', 'ARI', '@SF'],
+        #SEA = ['MIA', '@LA', 'SF', '@NYJ', 'BYE', 'ATL', '@ARI', '@NO', 'BUF',
+        #      '@NE', 'PHI', '@TB', 'CAR', '@GB', 'LA', 'ARI', '@SF'],
         SF  = ['LA', '@CAR', '@SEA', 'DAL', 'ARI', '@BUF', 'TB', 'BYE', 'NO',
               '@ARI', 'NE', '@MIA', '@CHI', 'NYJ', '@ATL', '@LA', 'SEA'],
         TB  = ['@ATL', '@ARI', 'LA', 'DEN', '@CAR', 'BYE', '@SF', 'OAK',
@@ -86,8 +95,7 @@ nweeks = 17
 # measure home field advantage
 #last5years = nflgame.games([2010, 2011, 2012, 2013, 2014, 2015])
 #hca = np.mean([g.score_home - g.score_away for g in last5years]) 
-hca = 2.4
-
+hca = 2.458
 
 # get the score for a given game
 def score(g, team):
@@ -152,14 +160,14 @@ spreads = {team : plus_minus(team) for team in teams}
 
 # calculate total expected spread for a set of picks
 def total_spread(picks):
-    return sum(spreads[team][week] for week, team in enumerate(picks))
+    return sum(spreads[team][week + weeks_played] for week, team in enumerate(picks))
 
 
 # picks generator
 def make_picks(npicks=1000):
     # initialize random picks
     while True:
-        picks = random.sample(teams, nweeks)
+        picks = random.sample(teams, nweeks - weeks_played)
         if total_spread(picks) != -float('inf'):  
             break
 
@@ -169,7 +177,7 @@ def make_picks(npicks=1000):
         new_picks = list(picks)
 
         # choose random week and corresponding team
-        i1 = random.randrange(nweeks)
+        i1 = random.randrange(nweeks - weeks_played)
         team1 = picks[i1]
 
         # choose second team and swap if necessary
@@ -201,6 +209,7 @@ def main():
 
     # print predictions
     for week, team in enumerate(mypicks):
+        week += weeks_played
         team = nflgame.standard_team(team)
         opp = matchups[team][week]
         print "".join(entry.ljust(6) for entry in
