@@ -12,14 +12,14 @@ from math import exp
 '''
 Directions:
 
-1) Specify number of weeks played in the current season
+1) Enter the teams below which you've already picked this season
 2) Delete scores.hdf (caches score data and should be regenerated every week)
-3) Comment out the teams in the matchup dictionary which you've already picked
 4) Run the script ./nflpicks.py
 '''
 
-# current week of the season
-weeks_played = 1
+# teams picked
+teams_picked = ['SEA', 'DET']
+weeks_played = len(teams_picked)
 
 # team schedule, '@' denotes away games
 matchups = dict(
@@ -77,8 +77,8 @@ matchups = dict(
               'DAL', '@CLE', '@IND', 'NYG', '@BUF', '@CIN', 'BAL', 'CLE'],
         SD  = ['@KC', 'JAC', '@IND', 'NO', '@OAK', 'DEN', '@ATL', '@DEN',
               'TEN', 'MIA', 'BYE', '@HOU', 'TB', '@CAR', 'OAK', '@CLE', 'KC'],
-        #SEA = ['MIA', '@LA', 'SF', '@NYJ', 'BYE', 'ATL', '@ARI', '@NO', 'BUF',
-        #      '@NE', 'PHI', '@TB', 'CAR', '@GB', 'LA', 'ARI', '@SF'],
+        SEA = ['MIA', '@LA', 'SF', '@NYJ', 'BYE', 'ATL', '@ARI', '@NO', 'BUF',
+              '@NE', 'PHI', '@TB', 'CAR', '@GB', 'LA', 'ARI', '@SF'],
         SF  = ['LA', '@CAR', '@SEA', 'DAL', 'ARI', '@BUF', 'TB', 'BYE', 'NO',
               '@ARI', 'NE', '@MIA', '@CHI', 'NYJ', '@ATL', '@LA', 'SEA'],
         TB  = ['@ATL', '@ARI', 'LA', 'DEN', '@CAR', 'BYE', '@SF', 'OAK',
@@ -89,8 +89,8 @@ matchups = dict(
               'BYE', 'MIN', 'GB', '@DAL', '@ARI', '@PHI', 'CAR', '@CHI', 'NYG'],
 )
 teams = list(matchups)
-nteams = len(teams)
-nweeks = 17
+teams_avail = list(set(teams) - set(teams_picked))
+nteams, nweeks = len(teams), len(matchups[teams[0]])
 
 # measure home field advantage
 #last5years = nflgame.games([2010, 2011, 2012, 2013, 2014, 2015])
@@ -167,7 +167,7 @@ def total_spread(picks):
 def make_picks(npicks=1000):
     # initialize random picks
     while True:
-        picks = random.sample(teams, nweeks - weeks_played)
+        picks = random.sample(teams_avail, nweeks - weeks_played)
         if total_spread(picks) != -float('inf'):  
             break
 
@@ -181,7 +181,7 @@ def make_picks(npicks=1000):
         team1 = picks[i1]
 
         # choose second team and swap if necessary
-        team2 = random.choice(teams)
+        team2 = random.choice(teams_avail)
         if team2 in picks:
             new_picks[picks.index(team2)] = team1
 
