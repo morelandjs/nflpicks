@@ -2,6 +2,8 @@ Requires python2.6, matplotlib, numpy, h5py and [nflgame](http://github.com/Burn
 
 `pip install h5py nflgame`
 
+Note: h5py also requires the general purpose hdf5 system library.
+
 This script uses a [Metropolis-Hastings](https://en.wikipedia.org/wiki/Metropolis%E2%80%93Hastings_algorithm) algorithm to optimize a set of picks for the pick'em NFL football game.
 The pick'em game has a simple set of rules:
 

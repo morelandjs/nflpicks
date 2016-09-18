@@ -18,7 +18,7 @@ Directions:
 '''
 
 # teams picked
-teams_picked = ['SEA', 'DET']
+teams_picked = ['PHI']
 weeks_played = len(teams_picked)
 
 # team schedule, '@' denotes away games
