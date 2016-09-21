@@ -213,8 +213,10 @@ def make_picks(npicks=1000):
 
 def main():
     # repeat the MCMC simulation using a large number of steps each time
-    for picks in make_picks(int(1e6)):
+    for i, picks in enumerate(make_picks(int(1e4))):
         mypicks = picks 
+        #plt.scatter(i, total_spread(picks))
+    #plt.show()
 
     # print predictions
     for week, team in enumerate(mypicks):
