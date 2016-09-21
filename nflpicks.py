@@ -13,12 +13,12 @@ from math import exp
 Directions:
 
 1) Enter the teams below which you've already picked this season
-2) Delete scores.hdf (caches score data and should be regenerated every week)
+2) Delete ratings.hdf (caches rating data and should be regenerated every week)
 4) Run the script ./nflpicks.py
 '''
 
 # teams picked
-teams_picked = ['PHI']
+teams_picked = ['SEA', 'DET']
 weeks_played = len(teams_picked)
 
 # team schedule, '@' denotes away games
@@ -92,10 +92,6 @@ teams = list(matchups)
 teams_avail = list(set(teams) - set(teams_picked))
 nteams, nweeks = len(teams), len(matchups[teams[0]])
 
-# measure home field advantage
-#last5years = nflgame.games([2010, 2011, 2012, 2013, 2014, 2015])
-#hca = np.mean([g.score_home - g.score_away for g in last5years]) 
-hca = 2.458
 
 # get the score for a given game
 def score(g, team):
@@ -106,8 +102,16 @@ def score(g, team):
 
 
 # store team score histories in an hdf5 file
-def cache_scores():
-    with h5py.File('scores.hdf', 'w') as f:
+def cache_ratings():
+    with h5py.File('ratings.hdf', 'w') as f:
+        #last5years = nflgame.games([2010, 2011, 2012, 2013, 2014, 2015, 2016])
+        #hca = np.mean([g.score_home - g.score_away for g in last5years]) 
+        hca = 2.476
+
+        #Rtg_avg = np.array([[g.score_home, g.score_away] for g in
+        #    chain(nflgame.games(2015), nflgame.games(2016))]).mean()
+        Rtg_avg = 22.781
+        
         for team in teams:
             if team == 'LA':
                 team_old, team_new = 'STL', 'LA'
@@ -115,43 +119,48 @@ def cache_scores():
                 team_old, team_new = 'JAC', 'JAX'
             else:
                 team_old, team_new = team, team
+
             scores = np.array([score(g, team) for g in
                     chain(nflgame.games(2015, home=team_old, away=team_old),
                     nflgame.games(2016, home=team_new, away=team_new))])
-            f.create_dataset(team, data=scores)
-    return
+
+            weights = np.exp(-np.arange(len(scores))[::-1]/6.)
+            ORtg = np.average(scores[:,0], weights=weights) - Rtg_avg
+            DRtg = np.average(scores[:,1], weights=weights) - Rtg_avg
+            dset = f.create_dataset(team, data=[ORtg, DRtg])
+            dset.attrs['hca'] = hca
 
 
 # calculate offensive and defensive rating
 def rating(team):
-    if not os.path.exists('scores.hdf'):
-        cache_scores()
-    with h5py.File('scores.hdf', 'r') as f:
-        scores = f[team]
-        weights = np.exp(-np.arange(len(scores))[::-1]/6.)
-        ORtg = np.average(scores[:,0], weights=weights)
-        DRtg = np.average(scores[:,1], weights=weights)
-    return ORtg, DRtg
+    if not os.path.exists('ratings.hdf'):
+        cache_ratings()
+    with h5py.File('ratings.hdf', 'r') as f:
+        ORtg, DRtg = f[team]
+        hca = f[team].attrs['hca']
+        return ORtg, DRtg, hca
 
 
 # approximate spread from offensive and defensive ratings
 def plus_minus(team):
-    team_off, team_def = rating(team)
-    score = []
+    team_off, team_def, hca = rating(team)
+    spread = []
+
     for opp in matchups[team]:
         if opp == 'BYE':
-            score.append(-float('inf'))
+            spread.append(-float('inf'))
         else:
             if '@' in opp:
                 opp = opp.replace('@', '')
-                adv = -hca
+                diff = -hca
             else:
-                adv = hca
-            opp_off, opp_def = rating(opp)
-            score.append((team_off + opp_def - opp_off
-                    - team_def + adv)/2)
+                diff = 0
 
-    return score
+            opp_off, opp_def, hca = rating(opp)
+            diff += team_off - team_def - opp_off + opp_def
+            spread.append(diff)
+
+    return spread
 
 
 # generate predicted spreads (plus-minus) for every game
@@ -204,7 +213,7 @@ def make_picks(npicks=1000):
 
 def main():
     # repeat the MCMC simulation using a large number of steps each time
-    for picks in make_picks(1000000):
+    for picks in make_picks(int(1e6)):
         mypicks = picks 
 
     # print predictions
