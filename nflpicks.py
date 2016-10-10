@@ -18,7 +18,7 @@ Directions:
 '''
 
 # teams picked
-teams_picked = ['SEA', 'DET']
+teams_picked = ['SEA', 'DET', 'MIA', 'WAS', 'NE']
 weeks_played = len(teams_picked)
 
 # team schedule, '@' denotes away games
@@ -104,13 +104,13 @@ def score(g, team):
 # store team score histories in an hdf5 file
 def cache_ratings():
     with h5py.File('ratings.hdf', 'w') as f:
-        #last5years = nflgame.games([2010, 2011, 2012, 2013, 2014, 2015, 2016])
-        #hca = np.mean([g.score_home - g.score_away for g in last5years]) 
-        hca = 2.476
+        last5years = nflgame.games([2010, 2011, 2012, 2013, 2014, 2015, 2016])
+        hca = np.mean([g.score_home - g.score_away for g in last5years]) 
+        #hca = 2.518
 
-        #Rtg_avg = np.array([[g.score_home, g.score_away] for g in
-        #    chain(nflgame.games(2015), nflgame.games(2016))]).mean()
-        Rtg_avg = 22.781
+        Rtg_avg = np.array([[g.score_home, g.score_away] for g in
+            chain(nflgame.games(2015), nflgame.games(2016))]).mean()
+        #Rtg_avg = 22.781
         
         for team in teams:
             if team == 'LA':
@@ -166,6 +166,8 @@ def plus_minus(team):
 # generate predicted spreads (plus-minus) for every game
 spreads = {team : plus_minus(team) for team in teams}
 
+# make some tweaks due to injuries
+spreads['CAR'][4] -= 5
 
 # calculate total expected spread for a set of picks
 def total_spread(picks):
@@ -213,7 +215,7 @@ def make_picks(npicks=1000):
 
 def main():
     # repeat the MCMC simulation using a large number of steps each time
-    for i, picks in enumerate(make_picks(int(1e4))):
+    for i, picks in enumerate(make_picks(int(2e6))):
         mypicks = picks 
         #plt.scatter(i, total_spread(picks))
     #plt.show()
