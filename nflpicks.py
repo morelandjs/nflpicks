@@ -18,12 +18,12 @@ Directions:
 '''
 
 # teams picked
-teams_picked = ['SEA', 'DET', 'MIA', 'WAS', 'NE', 'BUF']
-#teams_picked = []
+#teams_picked = ['SEA', 'DET', 'MIA', 'WAS', 'NE', 'BUF', 'CIN']
+teams_picked = []
 
 # historical and future information decay
 # e.g., np.exp(-games/dhist)
-dhist, dfut = 6., 16. 
+dhist, dfut = 8., 16. 
 
 # team schedule, '@' denotes away games
 matchups = dict(
@@ -31,13 +31,13 @@ matchups = dict(
               'SF', '@MIN', '@ATL', 'WAS', '@MIA', 'NO', '@SEA', '@LA'],
         ATL = ['TB', '@OAK', '@NO', 'CAR', '@DEN', '@SEA', 'SD', 'GB', '@TB',
               '@PHI', 'BYE', 'ARI', 'KC', '@LA', 'SF', '@CAR', 'NO'],
-        BAL = ['BUF', '@CLE', '@JAC', 'OAK', 'WAS', '@NYG', '@NYJ', 'BYE',
+        BAL = ['BUF', '@CLE', '@JAX', 'OAK', 'WAS', '@NYG', '@NYJ', 'BYE',
               'PIT', 'CLE', '@DAL', 'CIN', 'MIA', '@NE', 'PHI', '@PIT', '@CIN'],
         BUF = ['@BAL', 'NYJ', 'ARI', '@NE', '@LA', 'SF', '@MIA', 'NE', '@SEA',
-              'BYE', '@CIN', 'JAC', '@OAK', 'PIT', 'CLE', 'MIA', '@NYJ'],
+              'BYE', '@CIN', 'JAX', '@OAK', 'PIT', 'CLE', 'MIA', '@NYJ'],
         CAR = ['@DEN', 'SF', 'MIN', '@ATL', 'TB', '@NO', 'BYE', 'ARI', '@LA',
               'KC', 'NO', '@OAK', '@SEA', 'SD', '@WAS', 'ATL', '@TB'],
-        CHI = ['@HOU', 'PHI', '@DAL', 'DET', '@IND', 'JAC', '@GB', 'MIN',
+        CHI = ['@HOU', 'PHI', '@DAL', 'DET', '@IND', 'JAX', '@GB', 'MIN',
               'BYE', '@TB', '@NYG', 'TEN', 'SF', '@DET', 'GB', 'WAS', '@MIN'],
         CIN = ['@NYJ', '@PIT', 'DEN', 'MIA', '@DAL', '@NE', 'CLE', 'WAS',
               'BYE', '@NYG', 'BUF', '@BAL', 'PHI', '@CLE', 'PIT', '@HOU', 'BAL'],
@@ -46,25 +46,25 @@ matchups = dict(
         DAL = ['NYG', '@WAS', 'CHI', '@SF', 'CIN', '@GB', 'BYE', 'PHI',
               '@CLE', '@PIT', 'BAL', 'WAS', '@MIN', '@NYG', 'TB', 'DET', '@PHI'],
         DEN = ['CAR', 'IND', '@CIN', '@TB', 'ATL', '@SD', 'HOU', 'SD', '@OAK',
-              '@NO', 'BYE', 'KC', '@JAC', '@TEN', 'NE', '@KC', 'OAK'],
+              '@NO', 'BYE', 'KC', '@JAX', '@TEN', 'NE', '@KC', 'OAK'],
         DET = ['@IND', 'TEN', '@GB', '@CHI', 'PHI', 'LA', 'WAS', '@HOU',
-              '@MIN', 'BYE', 'JAC', 'MIN', '@NO', 'CHI', '@NYG', '@DAL', 'GB'],
-        GB  = ['@JAC', '@MIN', 'DET', 'BYE', 'NYG', 'DAL', 'CHI', '@ATL',
+              '@MIN', 'BYE', 'JAX', 'MIN', '@NO', 'CHI', '@NYG', '@DAL', 'GB'],
+        GB  = ['@JAX', '@MIN', 'DET', 'BYE', 'NYG', 'DAL', 'CHI', '@ATL',
               'IND', '@TEN', '@WAS', '@PHI', 'HOU', 'SEA', '@CHI', 'MIN', '@DET'],
         HOU = ['CHI', 'KC', '@NE', 'TEN', '@MIN', 'IND', '@DEN', 'DET', 'BYE',
-              '@JAC', '@OAK', 'SD', '@GB', '@IND', 'JAC', 'CIN', '@TEN'],
-        IND = ['DET', '@DEN', 'SD', '@JAC', 'CHI', '@HOU', '@TEN', 'KC',
-              '@GB', 'BYE', 'TEN', 'PIT', '@NYJ', 'HOU', '@MIN', '@OAK', 'JAC'],
-        JAC = ['GB', '@SD', 'BAL', 'IND', 'BYE', '@CHI', 'OAK', '@TEN', '@KC',
+              '@JAX', '@OAK', 'SD', '@GB', '@IND', 'JAX', 'CIN', '@TEN'],
+        IND = ['DET', '@DEN', 'SD', '@JAX', 'CHI', '@HOU', '@TEN', 'KC',
+              '@GB', 'BYE', 'TEN', 'PIT', '@NYJ', 'HOU', '@MIN', '@OAK', 'JAX'],
+        JAX = ['GB', '@SD', 'BAL', 'IND', 'BYE', '@CHI', 'OAK', '@TEN', '@KC',
               'HOU', '@DET', '@BUF', 'DEN', 'MIN', '@HOU', 'TEN', '@IND'],
         KC  = ['SD', '@HOU', 'NYJ', '@PIT', 'BYE', '@OAK', 'NO', '@IND',
-              'JAC', '@CAR', 'TB', '@DEN', '@ATL', 'OAK', 'TEN', 'DEN', '@SD'],
+              'JAX', '@CAR', 'TB', '@DEN', '@ATL', 'OAK', 'TEN', 'DEN', '@SD'],
         LA  = ['@SF', 'SEA', '@TB', '@ARI', 'BUF', '@DET', 'NYG', 'BYE',
               'CAR', '@NYJ', 'MIA', '@NO', '@NE', 'ATL', '@SEA', 'SF', 'ARI'],
         MIA = ['@SEA', '@NE', 'CLE', '@CIN', 'TEN', 'PIT', 'BUF', 'BYE',
               'NYJ', '@SD', '@LA', 'SF', '@BAL', 'ARI', '@NYJ', '@BUF', 'NE'],
         MIN = ['@TEN', 'GB', '@CAR', 'NYG', 'HOU', 'BYE', '@PHI', '@CHI',
-              'DET', '@WAS', 'ARI', '@DET', 'DAL', '@JAC', 'IND', '@GB', 'CHI'],
+              'DET', '@WAS', 'ARI', '@DET', 'DAL', '@JAX', 'IND', '@GB', 'CHI'],
         NE  = ['@ARI', 'MIA', 'HOU', 'BUF', '@CLE', 'CIN', '@PIT', '@BUF',
               'BYE', 'SEA', '@SF', '@NYJ', 'LA', 'BAL', '@DEN', 'NYJ', '@MIA'],
         NO  = ['OAK', '@NYG', 'ATL', '@SD', 'BYE', 'CAR', '@KC', 'SEA', '@SF',
@@ -73,13 +73,13 @@ matchups = dict(
               'CIN', 'CHI', '@CLE', '@PIT', 'DAL', 'DET', '@PHI', '@WAS'],
         NYJ = ['CIN', '@BUF', '@KC', 'SEA', '@PIT', '@ARI', 'BAL', '@CLE',
               '@MIA', 'LA', 'BYE', 'NE', 'IND', '@SF', 'MIA', '@NE', 'BUF'],
-        OAK = ['@NO', 'ATL', '@TEN', '@BAL', 'SD', 'KC', '@JAC', '@TB', 'DEN',
+        OAK = ['@NO', 'ATL', '@TEN', '@BAL', 'SD', 'KC', '@JAX', '@TB', 'DEN',
               'BYE', 'HOU', 'CAR', 'BUF', '@KC', '@SD', 'IND', '@DEN'],
         PHI = ['CLE', '@CHI', 'PIT', 'BYE', '@DET', '@WAS', 'MIN', '@DAL',
               '@NYG', 'ATL', '@SEA', 'GB', '@CIN', 'WAS', '@BAL', 'NYG', 'DAL'],
         PIT = ['@WAS', 'CIN', '@PHI', 'KC', 'NYJ', '@MIA', 'NE', 'BYE', '@BAL',
               'DAL', '@CLE', '@IND', 'NYG', '@BUF', '@CIN', 'BAL', 'CLE'],
-        SD  = ['@KC', 'JAC', '@IND', 'NO', '@OAK', 'DEN', '@ATL', '@DEN',
+        SD  = ['@KC', 'JAX', '@IND', 'NO', '@OAK', 'DEN', '@ATL', '@DEN',
               'TEN', 'MIA', 'BYE', '@HOU', 'TB', '@CAR', 'OAK', '@CLE', 'KC'],
         SEA = ['MIA', '@LA', 'SF', '@NYJ', 'BYE', 'ATL', '@ARI', '@NO', 'BUF',
               '@NE', 'PHI', '@TB', 'CAR', '@GB', 'LA', 'ARI', '@SF'],
@@ -87,8 +87,8 @@ matchups = dict(
               '@ARI', 'NE', '@MIA', '@CHI', 'NYJ', '@ATL', '@LA', 'SEA'],
         TB  = ['@ATL', '@ARI', 'LA', 'DEN', '@CAR', 'BYE', '@SF', 'OAK',
               'ATL', 'CHI', '@KC', 'SEA', '@SD', 'NO', '@DAL', '@NO', 'CAR'],
-        TEN = ['MIN', '@DET', 'OAK', '@HOU', '@MIA', 'CLE', 'IND', 'JAC',
-              '@SD', 'GB', '@IND', '@CHI', 'BYE', 'DEN', '@KC', '@JAC', 'HOU'],
+        TEN = ['MIN', '@DET', 'OAK', '@HOU', '@MIA', 'CLE', 'IND', 'JAX',
+              '@SD', 'GB', '@IND', '@CHI', 'BYE', 'DEN', '@KC', '@JAX', 'HOU'],
         WAS = ['PIT', 'DAL', '@NYG', 'CLE', '@BAL', 'PHI', '@DET', '@CIN',
               'BYE', 'MIN', 'GB', '@DAL', '@ARI', '@PHI', 'CAR', '@CHI', 'NYG'],
 )
@@ -106,49 +106,71 @@ def score(g, team):
         return g.score_away, g.score_home
 
 
+def games(years, team=None):
+    if team is None:
+        return nflgame.games(years)
+    elif team is 'LA':
+        oldteam = 'STL'
+    elif team is 'JAX':
+        oldteam = 'JAC'
+    else:
+        return nflgame.games(years, home=team, away=team)
+
+    y1 = [y for y in years if y <  2016]
+    y2 = [y for y in years if y >= 2016]
+    for y, t in zip([y1, y2], [oldteam, team]):
+        try:
+            games += nflgame.games(y, home=t, away=t)
+        except NameError:
+            games = []
+
+    return games
+
+#def cache_history():
+#    with h5py.File('spread_history.hdf', 'w') as f:
+#        for team in teams:
+#            years = list(range(2010, 2017))
+#            scores = [score(g, team) for g in games(years, team)]
+#
+#            start, end = 17, len(scores)
+#            weights = np.exp(-np.arange(start)[::-1]/dhist)
+#            series = [scores[i:j] for i, j in zip(range(end - 17), range(17, end))]
+#            ratings = [np.average(s, axis=0, weights=weights) for s in series]
+#            ratings = [ORtg - DRtg for ORtg, DRtg in ratings]
+#        
+#        dset = f.create_dataset('spreads', data=spreads)
+#        plt.hist(spreads, bins=np.arange(-40.5, 41.5, 1), histtype='step')
+#        plt.savefig('spreads.pdf')
+
+
 # store team score histories in an hdf5 file
 def cache_scores():
     with h5py.File('ratings.hdf', 'w') as f:
-        last5years = nflgame.games([2011, 2012, 2013, 2014, 2015, 2016])
-        hca = np.mean([g.score_home - g.score_away for g in last5years]) 
-        Rtg_avg = np.array([[g.score_home, g.score_away] for g in
-            chain(nflgame.games(2015), nflgame.games(2016))]).mean()
+        years = list(range(2010, 2017))
+        hca = np.mean([g.score_home - g.score_away for g in games(years)]) 
 
         for team in teams:
-            if team == 'LA':
-                team_old, team_new = 'STL', 'LA'
-            elif team == 'JAC':
-                team_old, team_new = 'JAC', 'JAX'
-            else:
-                team_old, team_new = team, team
-
-            scores = [score(g, team) for g in
-                    chain(nflgame.games(2015, home=team_old, away=team_old),
-                    nflgame.games(2016, home=team_new, away=team_new))]
-
+            scores = [score(g, team) for g in games([2015, 2016], team=team)]
             dset = f.create_dataset(team, data=scores)
             dset.attrs['hca'] = hca
-            dset.attrs['Rtg_avg'] = Rtg_avg
 
 
 # calculate offensive and defensive rating
 def rating(team):
-    global hca, Rtg_avg
+    global hca
     if not os.path.exists('ratings.hdf'):
         cache_scores()
     with h5py.File('ratings.hdf', 'r') as f:
         scores = f[team]
         hca = f[team].attrs['hca']
-        Rtg_avg = f[team].attrs['Rtg_avg']
         weights = np.exp(-np.arange(len(scores))[::-1]/dhist)
-        ORtg = np.average(scores[:,0], weights=weights) - Rtg_avg
-        DRtg = np.average(scores[:,1], weights=weights) - Rtg_avg
-        return ORtg, DRtg
+        ORtg, DRtg = np.average(scores, axis=0, weights=weights).T
+        return ORtg - DRtg
 
 
 # print current power rankings, ORtg - DRtg
 def power_rankings():
-    pwr_rnk = [(team, rating(team)[0] - rating(team)[1]) for team in teams]
+    pwr_rnk = [(team, rating(team)) for team in teams]
     print('\nPower Rankings:')
     for pwr_rnk in sorted(pwr_rnk, key=lambda x: -x[1]):
         print "".join(str(entry).ljust(6) for entry in pwr_rnk)
@@ -156,22 +178,16 @@ def power_rankings():
 
 # approximate spread from offensive and defensive ratings
 def plus_minus(team):
-    team_off, team_def = rating(team)
     spread = []
-
     for opp in matchups[team]:
         if opp == 'BYE':
             spread.append(-float('inf'))
         else:
             if '@' in opp:
                 opp = opp.replace('@', '')
-                diff = -hca
+                spread.append(rating(team) - rating(opp) - hca/2)
             else:
-                diff = 0
-
-            opp_off, opp_def = rating(opp)
-            diff += team_off - team_def - opp_off + opp_def
-            spread.append(diff)
+                spread.append(rating(team) - rating(opp) + hca/2)
 
     return spread
 
