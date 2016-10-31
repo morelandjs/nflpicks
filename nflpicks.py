@@ -18,12 +18,12 @@ Directions:
 '''
 
 # teams picked
-#teams_picked = ['SEA', 'DET', 'MIA', 'WAS', 'NE', 'BUF', 'CIN']
-teams_picked = []
+teams_picked = ['SEA', 'DET', 'MIA', 'WAS', 'NE', 'BUF', 'CIN', 'MIN']
+#teams_picked = []
 
 # historical and future information decay
 # e.g., np.exp(-games/dhist)
-dhist, dfut = 8., 16. 
+dhist, dfut = 6., 14. 
 
 # team schedule, '@' denotes away games
 matchups = dict(
@@ -126,31 +126,17 @@ def games(years, team=None):
 
     return games
 
-#def cache_history():
-#    with h5py.File('spread_history.hdf', 'w') as f:
-#        for team in teams:
-#            years = list(range(2010, 2017))
-#            scores = [score(g, team) for g in games(years, team)]
-#
-#            start, end = 17, len(scores)
-#            weights = np.exp(-np.arange(start)[::-1]/dhist)
-#            series = [scores[i:j] for i, j in zip(range(end - 17), range(17, end))]
-#            ratings = [np.average(s, axis=0, weights=weights) for s in series]
-#            ratings = [ORtg - DRtg for ORtg, DRtg in ratings]
-#        
-#        dset = f.create_dataset('spreads', data=spreads)
-#        plt.hist(spreads, bins=np.arange(-40.5, 41.5, 1), histtype='step')
-#        plt.savefig('spreads.pdf')
-
 
 # store team score histories in an hdf5 file
 def cache_scores():
-    with h5py.File('ratings.hdf', 'w') as f:
+    with h5py.File('scores.hdf', 'w') as f:
         years = list(range(2010, 2017))
-        hca = np.mean([g.score_home - g.score_away for g in games(years)]) 
+        hca = np.mean([g.score_home - g.score_away
+            for g in games(years)]) 
 
         for team in teams:
-            scores = [score(g, team) for g in games([2015, 2016], team=team)]
+            scores = [score(g, team)
+                    for g in games([2015, 2016], team=team)]
             dset = f.create_dataset(team, data=scores)
             dset.attrs['hca'] = hca
 
@@ -158,12 +144,15 @@ def cache_scores():
 # calculate offensive and defensive rating
 def rating(team):
     global hca
-    if not os.path.exists('ratings.hdf'):
+    if not os.path.exists('scores.hdf'):
         cache_scores()
-    with h5py.File('ratings.hdf', 'r') as f:
+    with h5py.File('scores.hdf', 'r') as f:
         scores = f[team]
+        entries = len(scores)
         hca = f[team].attrs['hca']
-        weights = np.exp(-np.arange(len(scores))[::-1]/dhist)
+        time = np.arange(entries)[::-1]
+        time[:entries - weeks_played] += 4
+        weights = np.exp(-time/dhist)
         ORtg, DRtg = np.average(scores, axis=0, weights=weights).T
         return ORtg - DRtg
 
@@ -200,7 +189,8 @@ spreads = {team : plus_minus(team) for team in teams}
 
 # calculate total expected spread for a set of picks
 def total_spread(picks):
-    return sum(np.exp(-week/dfut)*spreads[team][week + weeks_played] for week, team in enumerate(picks))
+    return sum(np.exp(-week/dfut)*spreads[team][week + weeks_played]
+            for week, team in enumerate(picks))
 
 
 # picks generator
