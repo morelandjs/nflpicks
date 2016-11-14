@@ -7,6 +7,7 @@ import random
 import h5py
 import os
 from itertools import chain
+from collections import Counter
 from math import exp
 
 '''
@@ -18,12 +19,12 @@ Directions:
 '''
 
 # teams picked
-teams_picked = ['SEA', 'DET', 'MIA', 'WAS', 'NE', 'BUF', 'CIN', 'MIN']
+teams_picked = ['SEA', 'DET', 'MIA', 'WAS', 'NE', 'BUF', 'CIN', 'MIN', 'KC', 'ARI']
 #teams_picked = []
 
 # historical and future information decay
 # e.g., np.exp(-games/dhist)
-dhist, dfut = 6., 14. 
+dhist, dfut = 6., 34. 
 
 # team schedule, '@' denotes away games
 matchups = dict(
@@ -118,6 +119,7 @@ def games(years, team=None):
 
     y1 = [y for y in years if y <  2016]
     y2 = [y for y in years if y >= 2016]
+
     for y, t in zip([y1, y2], [oldteam, team]):
         try:
             games += nflgame.games(y, home=t, away=t)
@@ -150,9 +152,13 @@ def rating(team):
         scores = f[team]
         entries = len(scores)
         hca = f[team].attrs['hca']
+
+        # create time weights for exp decay
         time = np.arange(entries)[::-1]
         time[:entries - weeks_played] += 4
         weights = np.exp(-time/dhist)
+
+        # return weighted average
         ORtg, DRtg = np.average(scores, axis=0, weights=weights).T
         return ORtg - DRtg
 
@@ -177,7 +183,6 @@ def plus_minus(team):
                 spread.append(rating(team) - rating(opp) - hca/2)
             else:
                 spread.append(rating(team) - rating(opp) + hca/2)
-
     return spread
 
 
@@ -189,8 +194,12 @@ spreads = {team : plus_minus(team) for team in teams}
 
 # calculate total expected spread for a set of picks
 def total_spread(picks):
-    return sum(np.exp(-week/dfut)*spreads[team][week + weeks_played]
-            for week, team in enumerate(picks))
+    # add a one touchdown error uncertainty to each predicted spread
+    errors = np.random.normal(scale=7, size=len(picks))
+
+    # return spread sum with information decay and random error
+    return sum(np.exp(-week/dfut)*spreads[team][week + weeks_played] + error
+            for week, (team, error) in enumerate(zip(picks, errors)))
 
 
 # picks generator
@@ -202,8 +211,8 @@ def make_picks(npicks=1000):
             break
 
     for step in range(npicks):
-        x = float(step)/float(npicks)
-        T = (1. - x)*5.
+        x = float(step)/float(npicks/2)
+        T = max((1. - x)*5., 1e-12)
         new_picks = list(picks)
 
         # choose random week and corresponding team
@@ -233,25 +242,32 @@ def make_picks(npicks=1000):
 
 
 def main():
-    # repeat the MCMC simulation using a large number of steps each time
-    for i, picks in enumerate(make_picks(int(2e6))):
-        mypicks = picks 
+    # number of MCMC iterations
+    npicks = 2e6
+
+    # record next week's pick occurences after initial burn in
+    counts = [p[0] for (i, p) in enumerate(
+        make_picks(int(npicks))) if i > npicks/2]
 
     # print current power rankings
     power_rankings()
 
-    # print predictions
-    print('\nPick\'em Picks:')
-    for week, team in enumerate(mypicks):
-        week += weeks_played
-        team = nflgame.standard_team(team)
-        opp = matchups[team][week]
-        print "".join(entry.ljust(6) for entry in
-                [team, opp, str(spreads[team][week])])
+    # plot next week's "best pick" likelihood
+    labels, values = zip(*Counter(counts).most_common())
+    indices = np.arange(len(labels))
+    plt.bar(indices, values, color=plt.cm.Blues(.6), lw=0)
+    plt.xticks(indices + 0.4, labels, rotation=90)
+    plt.xlim(0, len(labels))
+    plt.savefig('picks.pdf')
 
-    # print total expected score
-    print('\nExpected Score:')
-    print(total_spread(mypicks))
+    # print top three best picks
+    print('\nBest Pick\'em Picks:')
+    for team, counts in Counter(counts).most_common():
+        opp = matchups[team][weeks_played]
+        percent = 100.*counts/(npicks/2)
+        print "".join(entry.ljust(6) for entry in
+                [team, opp, '{:.1f}%'.format(percent)])
+
 
 if __name__ == "__main__":
     main()
