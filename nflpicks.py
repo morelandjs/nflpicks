@@ -25,7 +25,7 @@ teams_picked = ['SEA', 'DET', 'MIA', 'WAS', 'NE', 'BUF', 'CIN', 'MIN', 'KC',
 
 # historical and future information decay
 # e.g., np.exp(-games/dhist)
-dhist, dfut = 8., 34. 
+dhist, dfut = 6., 34. 
 
 # team schedule, '@' denotes away games
 matchups = dict(
@@ -100,12 +100,12 @@ nteams, nweeks = len(teams), len(matchups[teams[0]])
 weeks_played = len(teams_picked)
 
 
-# get the score for a given game
-def score(g, team):
+# get the adjusted (field neutral) score for a given game
+def score(g, team, hca):
     if g.is_home(team):
-        return g.score_home, g.score_away
+        return g.score_home - hca/2, g.score_away + hca/2
     else:
-        return g.score_away, g.score_home
+        return g.score_away + hca/2, g.score_home - hca/2
 
 
 def games(years, team=None):
@@ -138,7 +138,7 @@ def cache_scores():
             for g in games(years)]) 
 
         for team in teams:
-            scores = [score(g, team)
+            scores = [score(g, team, hca)
                     for g in games([2015, 2016], team=team)]
             dset = f.create_dataset(team, data=scores)
             dset.attrs['hca'] = hca
