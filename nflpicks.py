@@ -19,12 +19,13 @@ Directions:
 '''
 
 # teams picked
-teams_picked = ['SEA', 'DET', 'MIA', 'WAS', 'NE', 'BUF', 'CIN', 'MIN', 'KC', 'ARI']
+teams_picked = ['SEA', 'DET', 'MIA', 'WAS', 'NE', 'BUF', 'CIN', 'MIN', 'KC',
+        'ARI', 'PIT', 'NYG', 'DEN', 'ATL']
 #teams_picked = []
 
 # historical and future information decay
 # e.g., np.exp(-games/dhist)
-dhist, dfut = 6., 34. 
+dhist, dfut = 8., 34. 
 
 # team schedule, '@' denotes away games
 matchups = dict(
@@ -195,7 +196,7 @@ spreads = {team : plus_minus(team) for team in teams}
 # calculate total expected spread for a set of picks
 def total_spread(picks):
     # add a one touchdown error uncertainty to each predicted spread
-    errors = np.random.normal(scale=7, size=len(picks))
+    errors = np.random.normal(scale=3.3, size=len(picks))
 
     # return spread sum with information decay and random error
     return sum(np.exp(-week/dfut)*spreads[team][week + weeks_played] + error
