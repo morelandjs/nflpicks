@@ -20,11 +20,12 @@ Directions:
 
 # teams picked
 teams_picked = ['SEA', 'DET', 'MIA', 'WAS', 'NE', 'BUF', 'CIN', 'MIN', 'KC',
-                'ARI', 'PIT', 'NYG', 'DEN', 'ATL', 'BAL', 'SD']
+        'ARI', 'PIT', 'NYG', 'DEN', 'ATL']
+#teams_picked = []
 
 # historical and future information decay
 # e.g., np.exp(-games/dhist)
-dhist, dfut = 6., 34. 
+dhist, dfut = 8., 34. 
 
 # team schedule, '@' denotes away games
 matchups = dict(
