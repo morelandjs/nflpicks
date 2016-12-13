@@ -19,8 +19,8 @@ Directions:
 '''
 
 # teams picked
-teams_picked = ['SEA', 'DET', 'MIA', 'WAS', 'NE', 'BUF', 'CIN', 'MIN', 'KC', 'ARI']
-#teams_picked = []
+teams_picked = ['SEA', 'DET', 'MIA', 'WAS', 'NE', 'BUF', 'CIN', 'MIN', 'KC',
+                'ARI', 'PIT', 'NYG', 'DEN', 'ATL', 'BAL', 'SD']
 
 # historical and future information decay
 # e.g., np.exp(-games/dhist)
@@ -158,6 +158,11 @@ def rating(team):
         time[:entries - weeks_played] += 4
         weights = np.exp(-time/dhist)
 
+        # print weight
+        #var = 144 * np.square(weights).sum() / np.square(weights.sum())
+        #print(np.sqrt(var))
+        #quit()
+
         # return weighted average
         ORtg, DRtg = np.average(scores, axis=0, weights=weights).T
         return ORtg - DRtg
@@ -165,10 +170,12 @@ def rating(team):
 
 # print current power rankings, ORtg - DRtg
 def power_rankings():
-    pwr_rnk = [(team, rating(team)) for team in teams]
+    pwr_rnk = sorted([(team, rating(team)) for team in teams],
+                     key=lambda x: -x[1])
     print('\nPower Rankings:')
-    for pwr_rnk in sorted(pwr_rnk, key=lambda x: -x[1]):
-        print "".join(str(entry).ljust(6) for entry in pwr_rnk)
+    for rnk in pwr_rnk:
+        print "".join(str(entry).ljust(6) for entry in rnk)
+    return pwr_rnk
 
 
 # approximate spread from offensive and defensive ratings
@@ -180,9 +187,9 @@ def plus_minus(team):
         else:
             if '@' in opp:
                 opp = opp.replace('@', '')
-                spread.append(rating(team) - rating(opp) - hca/2)
+                spread.append(rating(team) - rating(opp) - hca)
             else:
-                spread.append(rating(team) - rating(opp) + hca/2)
+                spread.append(rating(team) - rating(opp) + hca)
     return spread
 
 
@@ -195,7 +202,7 @@ spreads = {team : plus_minus(team) for team in teams}
 # calculate total expected spread for a set of picks
 def total_spread(picks):
     # add a one touchdown error uncertainty to each predicted spread
-    errors = np.random.normal(scale=7, size=len(picks))
+    errors = np.random.normal(scale=3.3, size=len(picks))
 
     # return spread sum with information decay and random error
     return sum(np.exp(-week/dfut)*spreads[team][week + weeks_played] + error
@@ -250,7 +257,13 @@ def main():
         make_picks(int(npicks))) if i > npicks/2]
 
     # print current power rankings
-    power_rankings()
+    team, rank = zip(*power_rankings())
+    indices = np.arange(len(team))
+    plt.bar(indices, rank, color=plt.cm.Blues(.6), lw=0)
+    plt.xticks(indices + 0.4, team, rotation=90)
+    plt.xlim(0, len(team))
+    plt.ylabel('Average point differential')
+    plt.savefig('ratings.pdf')
 
     # plot next week's "best pick" likelihood
     labels, values = zip(*Counter(counts).most_common())
