@@ -3,6 +3,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import nflgame
+import itertools
 import random
 import os
 import pickle
@@ -20,7 +21,7 @@ Directions:
 
 # historical and future information decay
 # e.g., np.exp(-games/dhist)
-dhist, dfut = 8., 34. 
+dhist, dfut = 6., 40.
 
 # team schedule, '@' denotes away games
 matchups = dict(
@@ -90,93 +91,116 @@ matchups = dict(
               'BYE', 'MIN', 'GB', '@DAL', '@ARI', '@PHI', 'CAR', '@CHI', 'NYG'],
 )
 teams = list(matchups)
-nteams, nweeks = len(teams), len(matchups[teams[0]])
-
+nteams = len(teams)
+nweeks = len(matchups['ARI'])
+weeks = np.arange(nweeks)
 
 # home field advantage constant
 try:
     hfa = pickle.load(open('.hfa.pkl', 'rb'))
 except IOError:
-    years = list(range(2014, 2017))
+    years = list(range(2012, 2017))
     hfa = np.mean([g.score_home - g.score_away
         for g in nflgame.games(years)]) 
     pickle.dump(hfa, open('.hfa.pkl', 'wb'))
 
 
-# return the score and opponent for a single game
-def score(team, game):
-    diff = game.score_home - game.score_away - hfa
+def games(year, **kwargs):
+    replacements = dict(LA='STL', JAX='JAC')
+    if isinstance(year, int):
+        if year < 2016:
+            for k in ['home', 'away']:
+                if kwargs[k] in replacements:
+                    kwargs[k] = replacements[kwargs[k]]
+        return nflgame.games(year, **kwargs)
+
+    return list(itertools.chain.from_iterable(
+        games(y, **kwargs) for y in year
+    ))
+
+
+def opp(team, game):
+    replacements = dict(LA='STL', JAX='JAC')
     if game.is_home(team):
         opp = game.away
     else:
         opp = game.home
-        diff = -diff
-    opp = opp.replace('JAC', 'JAX')
-    opp = opp.replace('STL', 'LA')
-    return diff, opp
+    if opp in replacements:
+        return replacements[opp]
+    else:
+        return opp
+    
+
+# return the score and opponent for a single game
+def score(team, game, adj=False):
+    if adj:
+        adv = hfa
+    else:
+        adv = 0
+    spread = game.score_home - game.score_away
+    if game.is_home(team):
+        return spread - adv, opp(team, game)
+    else:
+        return -spread + adv, opp(team, game)
 
 
-# helper function to deal with naming quirks
-def pull_games(years, team=None):
-    if team is None:
-        return nflgame.games(years)
-
-    games = []
-
-    for year in years:
-        try:
-            games += nflgame.games(year, home=team, away=team)
-        except TypeError:
-            team_ = team.replace('JAX', 'JAC').replace('LA', 'STL')
-            games += nflgame.games(year, home=team_, away=team_)
-
-    return games
-
-# retrieve team game data 
-def game_scores(team, years):
-    games = pull_games(years, team=team)
-    week = lambda w: (w % 16) + 1
-    dates = [(game.season(), week(w))
-            for w, game in enumerate(games)]
-    scores = [score(team, game)
-            for game in games]
-
-    return zip(dates, scores)
-
-
-# calculate offensive and defensive rating
+# calculate spread rating for upcoming week
 def rating(team, year, week, opp_rtg=None):
-    if not os.path.exists('scores.pkl'):
-        years = [2015, 2016]
-        scores = {team: game_scores(team, years)
-                for team in teams}
-        pickle.dump(scores, open('scores.pkl', 'wb'))
-    with open('scores.pkl' , 'rb') as f:
-        load = pickle.load(f)
-        scores = [score for (yr, wk), score in load[team]
-                if (yr < year or wk <= week)]
+    years = [year - 1, year]
+    scores = [score(team, g, adj=True) for g in
+            games(years, home=team, away=team)
+            if g.schedule['week'] < week
+            or g.season() < year]
 
-        # create time weights for exp decay
-        time = np.arange(len(scores))[::-1]
-        weights = np.exp(-time/dhist)
+    # create time weights for exp decay
+    time = np.arange(len(scores))
+    time[week:] += 4
+    weights = np.exp(-time[::-1]/dhist)
 
-        # return weighted average
-        try:
-            diff = [spread + opp_rtg[opp] for (spread, opp) in scores]
-        except TypeError:
-            diff = [spread for (spread, opp) in scores]
+    # return weighted average
+    try:
+        diff = [spread + opp_rtg[opp] for (spread, opp) in scores]
+    except TypeError:
+        diff = [spread for (spread, opp) in scores]
 
-        return np.average(diff, weights=weights)
+    return np.average(diff, weights=weights)
+
+
+# approximate spread from offensive and defensive ratings
+def spread(team, week, rtg):
+    opp = matchups[team][week - 1]
+    if opp == 'BYE':
+        return -float('inf')
+    if '@' in opp:
+        opp = opp.replace('@', '')
+        return rtg[team] - rtg[opp] - hfa
+    else:
+        return rtg[team] - rtg[opp] + hfa
+    return spread
+
+
+# calculate total expected spread for a set of picks
+def total_spread(picks, spreads):
+    # standard deviation
+    std_dev = lambda w: 1e-6 + w/10.
+
+    # return spread sum with information decay and random error
+    means = [np.exp(-week/dfut) * spreads[team][week]
+            for week, team in enumerate(picks)]
+
+    # sample true spreads with error
+    return sum([np.random.normal(loc=mean, scale=std_dev(week))
+            for week, mean in enumerate(means)])
 
 
 # print current power rankings, ORtg - DRtg
-def power_rankings(rtg):
+def power_rankings(rtg, week):
     # sort by spread rating
     pwr_rnk = sorted([(team, rtg[team])
         for team in teams], key=lambda x: -x[1])
 
     # print power rankings
-    print('\nPower Rankings:')
+    print('\nWeek {} Power Rankings:'.format(week))
     for rnk in pwr_rnk:
         print "".join(str(entry).ljust(6) for entry in rnk)
 
@@ -190,57 +214,25 @@ def power_rankings(rtg):
     plt.savefig('ratings.pdf')
 
 
-# approximate spread from offensive and defensive ratings
-def plus_minus(team, rtg):
-    spread = []
-    for opp in matchups[team]:
-        if opp == 'BYE':
-            spread.append(-float('inf'))
-        else:
-            if '@' in opp:
-                opp = opp.replace('@', '')
-                spread.append(rtg[team] - rtg[opp] - hfa)
-            else:
-                spread.append(rtg[team] - rtg[opp] + hfa)
-    return spread
-
-
-# calculate total expected spread for a set of picks
-def total_spread(picks, spreads):
-    # standard deviation
-    std_dev = lambda w: 1e-6 + w/5.
-
-    # weeks played
-    weeks_played = nweeks - len(picks)
-
-    # return spread sum with information decay and random error
-    means = [np.exp(-week/dfut) * spreads[team][week + weeks_played]
-            for week, team in enumerate(picks)]
-
-    # sample true spreads with error
-    return sum([np.random.normal(loc=mean, scale=std_dev(week))
-            for week, mean in enumerate(means)])
-
-
-def weekly_spreads(rtg, weeks_played):
-    print('\nWeekly Spreads:')
+def predicted_spreads(week_spreads, week_matchups):
+    print('\nPredicted Spreads:')
     for team in teams:
-        opp = matchups[team][weeks_played]
-        if '@' in opp or 'BYE' in opp or 'BYE' in team:
+        opp = week_matchups[team]
+        pred = week_spreads[team]
+        if '@' in opp or 'BYE' in opp:
             continue
-        spread = rtg[team] - rtg[opp] + hfa
-        print("".join(entry.ljust(6) for entry in
-            [team, opp, '{:.1f}'.format(spread)]))
-
-
-def best_picks(counts, weeks_played, npicks):
-    print('\nBest Pick\'em Picks:')
-    ranked_picks = Counter(counts).most_common()
-    for team, counts in ranked_picks:
-        opp = matchups[team][weeks_played]
-        percent = 100.*counts/(npicks/2)
         print "".join(entry.ljust(6) for entry in
-                [team, opp, '{:.1f}%'.format(percent)])
+            [team, opp, '{:.1f}'.format(pred)])
+
+
+def best_picks(team_freq, week_matchups):
+    print('\nBest Pick\'em Picks:')
+    ranked_picks = Counter(team_freq).most_common()
+    for team, counts in ranked_picks:
+        opp = week_matchups[team]
+        percent = 100.*counts/len(team_freq)
+        print("".join(entry.ljust(6) for entry in
+                [team, opp, '{:.1f}%'.format(percent)]))
     return ranked_picks[0][0]
 
 
@@ -286,51 +278,91 @@ def make_picks(teams_picked, spreads, npicks=1000):
 
         yield picks, ts
 
+def rating_adjusted(year, week):
+    rtg = {team : rating(team, year, week) for team in teams}
+    for _ in range(5):
+        tmp = {team : rating(team, year, week, rtg) for team in teams}
+        rtg = tmp
+    return rtg
+
+
+def validate_spreads():
+    year = 2016
+    pred_ = []
+    obs_ = []
+    for week in range(17):
+        games = nflgame.games(year, week=(week+1))
+        rtg = rating_adjusted(year, week)
+        for game in games:
+            team = game.home.replace('JAC', 'JAX')
+            opp = game.away.replace('JAC', 'JAX')
+            pred_.append(rtg[team] - rtg[opp] + hfa)
+            obs, adv, opp = score(team, game, adj=True)
+            obs_.append(obs)
+    print(np.corrcoef(pred_, obs_))
+    plt.scatter(obs_, pred_)
+    x = np.linspace(-40, 40, 100)
+    plt.plot(x, x)
+    plt.xlim(-40, 40)
+    plt.ylim(-40, 40)
+    plt.show()
+
 
 def main():
-    # number of MCMC iterations
-    npicks = int(1e6)
+    # global meta data
+    npicks = int(2e6)
+    year = 2016
 
     # list of picks
-    #teams_picked = ['SEA', 'DET', 'MIA', 'WAS', 'NE', 'BUF', 'CIN',
-    #        'MIN', 'KC', 'ARI', 'PIT', 'NYG', 'DEN', 'ATL']
+    #teams_picked = ['SEA', 'DET', 'MIA', 'WAS', 'NE', 'BUF', 'CIN', 'MIN',
+    #        'KC', 'ARI', 'PIT', 'NYG', 'DEN', 'ATL', 'HOU', 'SD']
     teams_picked = []
 
     # simulate a full season
-    for wk in np.arange(1, nweeks + 1):
-
-        # set current week
-        weeks_played = len(teams_picked)
-        week = weeks_played + 1
-        year = 2016
+    for week in np.arange(1, 18):
 
         # calculate spread ratings
-        rtg = {team : rating(team, year, week) for team in teams}
-        for it in range(5):
-            rtg_ = {team : rating(team, year, week, rtg) for team in teams}
-            rtg = rtg_
+        rtg = {team: rating(team, year, week) for team in teams}
+        #rtg = rating_adjusted(year, week)
 
-        # generate predicted spreads (plus-minus) for every game
-        spreads = {team : plus_minus(team, rtg) for team in teams}
+        if week == 5:
+            rtg['CAR'] = -float('inf')
+
+        # power rankings
+        power_rankings(rtg, week)
+
+        # generate predicted spreads (plus-minus) for every remaining game
+        weeks_left = np.arange(week, nweeks + 1)
+        spreads = {team : [spread(team, week, rtg) for week in weeks_left]
+                for team in teams}
+
+        # this week's spreads and matchups
+        week_spreads = {team : spreads[team][0] for team in teams}
+        week_matchups = {team : matchups[team][week - 1] for team in teams}
 
         # run the monte carlo
-        counts = [picks[0] for it, (picks, ts)
+        team_freq = [picks[0] for it, (picks, ts)
                 in enumerate(make_picks(teams_picked, spreads, npicks))
                 if it > npicks/2]
 
-        # power rankings
-        power_rankings(rtg)
 
-        # weekly spreads
-        weekly_spreads(rtg, weeks_played)
-
-        # print top three best picks
-        teams_picked.append(best_picks(counts, weeks_played, npicks))
+        # this week's matchups and spreads
+        predicted_spreads(week_spreads, week_matchups)
+        teams_picked.append(best_picks(team_freq, week_matchups))
 
     # output final picks
-    for week, team in enumerate(teams_picked):
-        opp = matchups[team][week]
-        print "".join(entry.ljust(6) for entry in [team, opp])
+    print('\nPick\'em Season Picks:')
+    total = 0
+    for week, team in enumerate(teams_picked, start=1):
+        if week > 16:
+            break
+        game = games(year, week=week, home=team, away=team)[0]
+        diff, opp = score(team, game)
+        total += diff
+        print "".join(entry.ljust(6) for entry in [
+            team, opp,'{:.1f}'.format(diff)
+            ])
+    print("Total Score:", total)
 
 
 if __name__ == "__main__":
