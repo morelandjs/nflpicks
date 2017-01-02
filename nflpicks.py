@@ -21,7 +21,9 @@ Directions:
 
 # historical and future information decay
 # e.g., np.exp(-games/dhist)
-dhist, dfut = 6., 40.
+dhist = 6.
+
+YEAR = 2016
 
 # team schedule, '@' denotes away games
 matchups = dict(
@@ -120,34 +122,24 @@ def games(year, **kwargs):
 
 
 def opp(team, game):
-    replacements = dict(LA='STL', JAX='JAC')
-    if game.is_home(team):
-        opp = game.away
-    else:
-        opp = game.home
+    replacements = dict(STL='LA', JAC='JAX')
+    opp = game.away if game.is_home(team) else game.home
     if opp in replacements:
         return replacements[opp]
-    else:
-        return opp
+    return opp
     
 
 # return the score and opponent for a single game
-def score(team, game, adj=False):
-    if adj:
-        adv = hfa
-    else:
-        adv = 0
-    spread = game.score_home - game.score_away
-    if game.is_home(team):
-        return spread - adv, opp(team, game)
-    else:
-        return -spread + adv, opp(team, game)
+def score(team, game, adv=0):
+    diff = game.score_home - game.score_away
+    spread = diff - adv if game.is_home(team) else -diff + adv
+    return spread, opp(team, game)
 
 
 # calculate spread rating for upcoming week
 def rating(team, year, week, opp_rtg=None):
     years = [year - 1, year]
-    scores = [score(team, g, adj=True) for g in
+    scores = [score(team, g, hfa) for g in
             games(years, home=team, away=team)
             if g.schedule['week'] < week
             or g.season() < year]
@@ -162,12 +154,19 @@ def rating(team, year, week, opp_rtg=None):
         diff = [spread + opp_rtg[opp] for (spread, opp) in scores]
     except TypeError:
         diff = [spread for (spread, opp) in scores]
-
     return np.average(diff, weights=weights)
+
+
+def rating_adjusted(team, year, week):
+    rtg = {team : rating(team, year, week) for team in teams}
+    return {team : rating(team, year, week, rtg) for team in teams}
 
 
 # approximate spread from offensive and defensive ratings
 def spread(team, week, rtg):
+    replacements = dict(STL='LA', JAC='JAX')
+    if team in replacements:
+        team = replacements[team]
     opp = matchups[team][week - 1]
     if opp == 'BYE':
         return -float('inf')
@@ -176,64 +175,20 @@ def spread(team, week, rtg):
         return rtg[team] - rtg[opp] - hfa
     else:
         return rtg[team] - rtg[opp] + hfa
-    return spread
 
 
 # calculate total expected spread for a set of picks
 def total_spread(picks, spreads):
     # standard deviation
-    std_dev = lambda w: 1e-6 + w/10.
+    #std_dev = lambda w: 1e-6 + w/10.
+    std_dev = lambda w: 1e-6
 
     # return spread sum with information decay and random error
-    means = [np.exp(-week/dfut) * spreads[team][week]
-            for week, team in enumerate(picks)]
+    means = [np.arctan(spreads[team][week]/3.) for week, team in enumerate(picks)]
 
     # sample true spreads with error
     return sum([np.random.normal(loc=mean, scale=std_dev(week))
-            for week, mean in enumerate(means)])
-
-
-# print current power rankings, ORtg - DRtg
-def power_rankings(rtg, week):
-    # sort by spread rating
-    pwr_rnk = sorted([(team, rtg[team])
-        for team in teams], key=lambda x: -x[1])
-
-    # print power rankings
-    print('\nWeek {} Power Rankings:'.format(week))
-    for rnk in pwr_rnk:
-        print "".join(str(entry).ljust(6) for entry in rnk)
-
-    # plot power rankings
-    team, rank = zip(*pwr_rnk)
-    indices = np.arange(len(team))
-    plt.bar(indices, rank, color=plt.cm.Blues(.6), lw=0)
-    plt.xticks(indices + 0.4, team, rotation=90)
-    plt.xlim(0, len(team))
-    plt.ylabel('Average point differential')
-    plt.savefig('ratings.pdf')
-
-
-def predicted_spreads(week_spreads, week_matchups):
-    print('\nPredicted Spreads:')
-    for team in teams:
-        opp = week_matchups[team]
-        pred = week_spreads[team]
-        if '@' in opp or 'BYE' in opp:
-            continue
-        print "".join(entry.ljust(6) for entry in
-            [team, opp, '{:.1f}'.format(pred)])
-
-
-def best_picks(team_freq, week_matchups):
-    print('\nBest Pick\'em Picks:')
-    ranked_picks = Counter(team_freq).most_common()
-    for team, counts in ranked_picks:
-        opp = week_matchups[team]
-        percent = 100.*counts/len(team_freq)
-        print("".join(entry.ljust(6) for entry in
-                [team, opp, '{:.1f}%'.format(percent)]))
-    return ranked_picks[0][0]
+        for week, mean in enumerate(means)])
 
 
 # picks generator
@@ -276,28 +231,63 @@ def make_picks(teams_picked, spreads, npicks=1000):
         if new_ts > ts or exp((new_ts - ts)/T) > random.random():
             picks = new_picks
 
-        yield picks, ts
+        yield picks
 
-def rating_adjusted(year, week):
-    rtg = {team : rating(team, year, week) for team in teams}
-    for _ in range(5):
-        tmp = {team : rating(team, year, week, rtg) for team in teams}
-        rtg = tmp
-    return rtg
+
+# print current power rankings, ORtg - DRtg
+def power_rankings(rtg):
+    # sort by spread rating
+    pwr_rnk = sorted([(team, rtg[team])
+        for team in teams], key=lambda x: -x[1])
+
+    # print power rankings
+    print '\nPower Rankings:'
+    for rnk in pwr_rnk:
+        print "".join(str(entry).ljust(6) for entry in rnk)
+
+    # plot power rankings
+    team, rank = zip(*pwr_rnk)
+    indices = np.arange(len(team))
+    plt.bar(indices, rank, color=plt.cm.Blues(.6), lw=0)
+    plt.xticks(indices + 0.4, team, rotation=90)
+    plt.xlim(0, len(team))
+    plt.ylabel('Average point differential')
+    plt.savefig('ratings.pdf')
+
+
+def predicted_spreads(rtg, week):
+    print '\nPredicted Spreads:'
+    games = nflgame.games(YEAR, week=week)
+    for game in games:
+        team = game.home.replace('JAC', 'JAX')
+        pred_spread = spread(team, week, rtg)
+        print "".join(entry.ljust(6) for entry in
+            [team, opp(team, game), '{:.1f}'.format(pred_spread)])
+
+
+def best_picks(team_samples, week):
+    print '\nBest Pick\'em Picks:'
+    counter = Counter(team_samples).most_common()
+    for team, counts in counter:
+        opp = matchups[team][week - 1]
+        percent = 100.*counts/len(team_samples)
+        print "".join(entry.ljust(6) for entry in
+                [team, opp, '{:.1f}%'.format(percent)])
+
+    return counter[0][0]
 
 
 def validate_spreads():
-    year = 2016
     pred_ = []
     obs_ = []
-    for week in range(17):
-        games = nflgame.games(year, week=(week+1))
-        rtg = rating_adjusted(year, week)
+    for week in np.arange(1,18):
+        games = nflgame.games(YEAR, week=week)
+        rtg = {team: rating(team, YEAR, week) for team in teams}
         for game in games:
             team = game.home.replace('JAC', 'JAX')
             opp = game.away.replace('JAC', 'JAX')
             pred_.append(rtg[team] - rtg[opp] + hfa)
-            obs, adv, opp = score(team, game, adj=True)
+            obs, adv, opp = score(team, game)
             obs_.append(obs)
     print(np.corrcoef(pred_, obs_))
     plt.scatter(obs_, pred_)
@@ -308,10 +298,34 @@ def validate_spreads():
     plt.show()
 
 
+def projected_score(picks, rtg):
+    _, this_week = nflgame.live.current_year_and_week()
+    total = 0
+
+    print '\nPick\'em Season Picks:' 
+    for week, team in enumerate(picks, start=1):
+        if week == this_week:
+            break
+        game = games(YEAR, week=week, home=team, away=team)
+        diff, opp = score(team, *game)
+        total += diff
+        print "".join(entry.ljust(6)
+                for entry in [team, opp,'{:.1f}'.format(diff)])
+    print '\nTotal Score:', total
+
+    print '\nProjected Remaining Picks:' 
+    for week, team in enumerate(picks, start=1):
+        if week < this_week:
+            continue
+        opp = matchups[team][week - 1]
+        diff = spread(team, week, rtg)
+        print "".join(entry.ljust(6)
+                for entry in [team, opp,'{:.1f}'.format(diff)])
+
+
 def main():
     # global meta data
-    npicks = int(2e6)
-    year = 2016
+    npicks = int(2e5)
 
     # list of picks
     #teams_picked = ['SEA', 'DET', 'MIA', 'WAS', 'NE', 'BUF', 'CIN', 'MIN',
@@ -320,49 +334,35 @@ def main():
 
     # simulate a full season
     for week in np.arange(1, 18):
+        weeks_left = np.arange(week, 18)
 
         # calculate spread ratings
-        rtg = {team: rating(team, year, week) for team in teams}
-        #rtg = rating_adjusted(year, week)
-
-        if week == 5:
-            rtg['CAR'] = -float('inf')
+        rtg = {team : rating(team, YEAR, week) for team in teams}
 
         # power rankings
-        power_rankings(rtg, week)
+        power_rankings(rtg)
 
         # generate predicted spreads (plus-minus) for every remaining game
-        weeks_left = np.arange(week, nweeks + 1)
-        spreads = {team : [spread(team, week, rtg) for week in weeks_left]
+        spreads = {team : [spread(team, w, rtg) for w in weeks_left]
                 for team in teams}
 
-        # this week's spreads and matchups
-        week_spreads = {team : spreads[team][0] for team in teams}
-        week_matchups = {team : matchups[team][week - 1] for team in teams}
+        # exclude injured teams
+        if week == 5:
+            spreads['CAR'][0] = 0
+
+        # predicted spreads for each game
+        predicted_spreads(rtg, week)
 
         # run the monte carlo
-        team_freq = [picks[0] for it, (picks, ts)
-                in enumerate(make_picks(teams_picked, spreads, npicks))
-                if it > npicks/2]
-
+        team_samples = [picks[0] for it, picks in enumerate(
+            make_picks(teams_picked, spreads, npicks)
+            ) if it > npicks/2]
 
         # this week's matchups and spreads
-        predicted_spreads(week_spreads, week_matchups)
-        teams_picked.append(best_picks(team_freq, week_matchups))
+        teams_picked.append(best_picks(team_samples, week))
 
     # output final picks
-    print('\nPick\'em Season Picks:')
-    total = 0
-    for week, team in enumerate(teams_picked, start=1):
-        if week > 16:
-            break
-        game = games(year, week=week, home=team, away=team)[0]
-        diff, opp = score(team, game)
-        total += diff
-        print "".join(entry.ljust(6) for entry in [
-            team, opp,'{:.1f}'.format(diff)
-            ])
-    print("Total Score:", total)
+    projected_score(teams_picked, rtg)
 
 
 if __name__ == "__main__":
