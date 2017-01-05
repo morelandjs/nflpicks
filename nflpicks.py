@@ -157,9 +157,9 @@ def rating(team, year, week, opp_rtg=None):
     return np.average(diff, weights=weights)
 
 
-def rating_adjusted(team, year, week):
-    rtg = {team : rating(team, year, week) for team in teams}
-    return {team : rating(team, year, week, rtg) for team in teams}
+#def rating_adjusted(team, year, week):
+#    rtg = {team : rating(team, year, week) for team in teams}
+#    return {team : rating(team, year, week, rtg) for team in teams}
 
 
 # approximate spread from offensive and defensive ratings
@@ -277,27 +277,6 @@ def best_picks(team_samples, week):
     return counter[0][0]
 
 
-def validate_spreads():
-    pred_ = []
-    obs_ = []
-    for week in np.arange(1,18):
-        games = nflgame.games(YEAR, week=week)
-        rtg = {team: rating(team, YEAR, week) for team in teams}
-        for game in games:
-            team = game.home.replace('JAC', 'JAX')
-            opp = game.away.replace('JAC', 'JAX')
-            pred_.append(rtg[team] - rtg[opp] + hfa)
-            obs, adv, opp = score(team, game)
-            obs_.append(obs)
-    print(np.corrcoef(pred_, obs_))
-    plt.scatter(obs_, pred_)
-    x = np.linspace(-40, 40, 100)
-    plt.plot(x, x)
-    plt.xlim(-40, 40)
-    plt.ylim(-40, 40)
-    plt.show()
-
-
 def projected_score(picks, rtg):
     _, this_week = nflgame.live.current_year_and_week()
     total = 0
@@ -325,11 +304,9 @@ def projected_score(picks, rtg):
 
 def main():
     # global meta data
-    npicks = int(2e5)
+    npicks = int(2e6)
 
     # list of picks
-    #teams_picked = ['SEA', 'DET', 'MIA', 'WAS', 'NE', 'BUF', 'CIN', 'MIN',
-    #        'KC', 'ARI', 'PIT', 'NYG', 'DEN', 'ATL', 'HOU', 'SD']
     teams_picked = []
 
     # simulate a full season
@@ -338,6 +315,9 @@ def main():
 
         # calculate spread ratings
         rtg = {team : rating(team, YEAR, week) for team in teams}
+
+        if week in [1, 17]:
+            rtg = {team : 0.66*rtg[team] for team in teams}
 
         # power rankings
         power_rankings(rtg)
