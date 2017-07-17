@@ -2,13 +2,14 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
+import nfldb
 import nflgame
 import itertools
 import random
 import os
 import pickle
 from itertools import chain
-from collections import Counter
+from collections import Counter, defaultdict
 from math import exp
 
 '''
@@ -23,75 +24,28 @@ Directions:
 # e.g., np.exp(-games/dhist)
 dhist = 6.
 
-YEAR = 2016
+YEAR = 2017
 
-# team schedule, '@' denotes away games
-matchups = dict(
-        ARI = ['NE', 'TB', '@BUF', 'LA', '@SF', 'NYJ', 'SEA', '@CAR', 'BYE',
-              'SF', '@MIN', '@ATL', 'WAS', '@MIA', 'NO', '@SEA', '@LA'],
-        ATL = ['TB', '@OAK', '@NO', 'CAR', '@DEN', '@SEA', 'SD', 'GB', '@TB',
-              '@PHI', 'BYE', 'ARI', 'KC', '@LA', 'SF', '@CAR', 'NO'],
-        BAL = ['BUF', '@CLE', '@JAX', 'OAK', 'WAS', '@NYG', '@NYJ', 'BYE',
-              'PIT', 'CLE', '@DAL', 'CIN', 'MIA', '@NE', 'PHI', '@PIT', '@CIN'],
-        BUF = ['@BAL', 'NYJ', 'ARI', '@NE', '@LA', 'SF', '@MIA', 'NE', '@SEA',
-              'BYE', '@CIN', 'JAX', '@OAK', 'PIT', 'CLE', 'MIA', '@NYJ'],
-        CAR = ['@DEN', 'SF', 'MIN', '@ATL', 'TB', '@NO', 'BYE', 'ARI', '@LA',
-              'KC', 'NO', '@OAK', '@SEA', 'SD', '@WAS', 'ATL', '@TB'],
-        CHI = ['@HOU', 'PHI', '@DAL', 'DET', '@IND', 'JAX', '@GB', 'MIN',
-              'BYE', '@TB', '@NYG', 'TEN', 'SF', '@DET', 'GB', 'WAS', '@MIN'],
-        CIN = ['@NYJ', '@PIT', 'DEN', 'MIA', '@DAL', '@NE', 'CLE', 'WAS',
-              'BYE', '@NYG', 'BUF', '@BAL', 'PHI', '@CLE', 'PIT', '@HOU', 'BAL'],
-        CLE = ['@PHI', 'BAL', '@MIA', '@WAS', 'NE', '@TEN', '@CIN', 'NYJ',
-              'DAL', '@BAL', 'PIT', 'NYG', 'BYE', 'CIN', '@BUF', 'SD', '@PIT'],
-        DAL = ['NYG', '@WAS', 'CHI', '@SF', 'CIN', '@GB', 'BYE', 'PHI',
-              '@CLE', '@PIT', 'BAL', 'WAS', '@MIN', '@NYG', 'TB', 'DET', '@PHI'],
-        DEN = ['CAR', 'IND', '@CIN', '@TB', 'ATL', '@SD', 'HOU', 'SD', '@OAK',
-              '@NO', 'BYE', 'KC', '@JAX', '@TEN', 'NE', '@KC', 'OAK'],
-        DET = ['@IND', 'TEN', '@GB', '@CHI', 'PHI', 'LA', 'WAS', '@HOU',
-              '@MIN', 'BYE', 'JAX', 'MIN', '@NO', 'CHI', '@NYG', '@DAL', 'GB'],
-        GB  = ['@JAX', '@MIN', 'DET', 'BYE', 'NYG', 'DAL', 'CHI', '@ATL',
-              'IND', '@TEN', '@WAS', '@PHI', 'HOU', 'SEA', '@CHI', 'MIN', '@DET'],
-        HOU = ['CHI', 'KC', '@NE', 'TEN', '@MIN', 'IND', '@DEN', 'DET', 'BYE',
-              '@JAX', '@OAK', 'SD', '@GB', '@IND', 'JAX', 'CIN', '@TEN'],
-        IND = ['DET', '@DEN', 'SD', '@JAX', 'CHI', '@HOU', '@TEN', 'KC',
-              '@GB', 'BYE', 'TEN', 'PIT', '@NYJ', 'HOU', '@MIN', '@OAK', 'JAX'],
-        JAX = ['GB', '@SD', 'BAL', 'IND', 'BYE', '@CHI', 'OAK', '@TEN', '@KC',
-              'HOU', '@DET', '@BUF', 'DEN', 'MIN', '@HOU', 'TEN', '@IND'],
-        KC  = ['SD', '@HOU', 'NYJ', '@PIT', 'BYE', '@OAK', 'NO', '@IND',
-              'JAX', '@CAR', 'TB', '@DEN', '@ATL', 'OAK', 'TEN', 'DEN', '@SD'],
-        LA  = ['@SF', 'SEA', '@TB', '@ARI', 'BUF', '@DET', 'NYG', 'BYE',
-              'CAR', '@NYJ', 'MIA', '@NO', '@NE', 'ATL', '@SEA', 'SF', 'ARI'],
-        MIA = ['@SEA', '@NE', 'CLE', '@CIN', 'TEN', 'PIT', 'BUF', 'BYE',
-              'NYJ', '@SD', '@LA', 'SF', '@BAL', 'ARI', '@NYJ', '@BUF', 'NE'],
-        MIN = ['@TEN', 'GB', '@CAR', 'NYG', 'HOU', 'BYE', '@PHI', '@CHI',
-              'DET', '@WAS', 'ARI', '@DET', 'DAL', '@JAX', 'IND', '@GB', 'CHI'],
-        NE  = ['@ARI', 'MIA', 'HOU', 'BUF', '@CLE', 'CIN', '@PIT', '@BUF',
-              'BYE', 'SEA', '@SF', '@NYJ', 'LA', 'BAL', '@DEN', 'NYJ', '@MIA'],
-        NO  = ['OAK', '@NYG', 'ATL', '@SD', 'BYE', 'CAR', '@KC', 'SEA', '@SF',
-              'DEN', '@CAR', 'LA', 'DET', '@TB', '@ARI', 'TB', '@ATL'],
-        NYG = ['@DAL', 'NO', 'WAS', '@MIN', '@GB', 'BAL', '@LA', 'BYE', 'PHI',
-              'CIN', 'CHI', '@CLE', '@PIT', 'DAL', 'DET', '@PHI', '@WAS'],
-        NYJ = ['CIN', '@BUF', '@KC', 'SEA', '@PIT', '@ARI', 'BAL', '@CLE',
-              '@MIA', 'LA', 'BYE', 'NE', 'IND', '@SF', 'MIA', '@NE', 'BUF'],
-        OAK = ['@NO', 'ATL', '@TEN', '@BAL', 'SD', 'KC', '@JAX', '@TB', 'DEN',
-              'BYE', 'HOU', 'CAR', 'BUF', '@KC', '@SD', 'IND', '@DEN'],
-        PHI = ['CLE', '@CHI', 'PIT', 'BYE', '@DET', '@WAS', 'MIN', '@DAL',
-              '@NYG', 'ATL', '@SEA', 'GB', '@CIN', 'WAS', '@BAL', 'NYG', 'DAL'],
-        PIT = ['@WAS', 'CIN', '@PHI', 'KC', 'NYJ', '@MIA', 'NE', 'BYE', '@BAL',
-              'DAL', '@CLE', '@IND', 'NYG', '@BUF', '@CIN', 'BAL', 'CLE'],
-        SD  = ['@KC', 'JAX', '@IND', 'NO', '@OAK', 'DEN', '@ATL', '@DEN',
-              'TEN', 'MIA', 'BYE', '@HOU', 'TB', '@CAR', 'OAK', '@CLE', 'KC'],
-        SEA = ['MIA', '@LA', 'SF', '@NYJ', 'BYE', 'ATL', '@ARI', '@NO', 'BUF',
-              '@NE', 'PHI', '@TB', 'CAR', '@GB', 'LA', 'ARI', '@SF'],
-        SF  = ['LA', '@CAR', '@SEA', 'DAL', 'ARI', '@BUF', 'TB', 'BYE', 'NO',
-              '@ARI', 'NE', '@MIA', '@CHI', 'NYJ', '@ATL', '@LA', 'SEA'],
-        TB  = ['@ATL', '@ARI', 'LA', 'DEN', '@CAR', 'BYE', '@SF', 'OAK',
-              'ATL', 'CHI', '@KC', 'SEA', '@SD', 'NO', '@DAL', '@NO', 'CAR'],
-        TEN = ['MIN', '@DET', 'OAK', '@HOU', '@MIA', 'CLE', 'IND', 'JAX',
-              '@SD', 'GB', '@IND', '@CHI', 'BYE', 'DEN', '@KC', '@JAX', 'HOU'],
-        WAS = ['PIT', 'DAL', '@NYG', 'CLE', '@BAL', 'PHI', '@DET', '@CIN',
-              'BYE', 'MIN', 'GB', '@DAL', '@ARI', '@PHI', 'CAR', '@CHI', 'NYG'],
-)
+db = nfldb.connect()
+
+def schedule(year):
+    q = nfldb.Query(db)
+    q.game(season_year=year, season_type='Regular')
+
+    sched = defaultdict(dict)
+
+    for game in q.as_games():
+        sched[game.away_team][game.week] = '@' + game.home_team
+        sched[game.home_team][game.week] = game.away_team
+
+    return sched
+
+for team in sorted(schedule(2012)):
+    print(team)
+quit()
+
+print(schedule(2017))
+
 teams = list(matchups)
 nteams = len(teams)
 nweeks = len(matchups['ARI'])
@@ -309,6 +263,8 @@ def main():
     # list of picks
     teams_picked = []
 
+    quit()
+
     # simulate a full season
     for week in np.arange(1, 18):
         weeks_left = np.arange(week, 18)
@@ -325,10 +281,6 @@ def main():
         # generate predicted spreads (plus-minus) for every remaining game
         spreads = {team : [spread(team, w, rtg) for w in weeks_left]
                 for team in teams}
-
-        # exclude injured teams
-        if week == 5:
-            spreads['CAR'][0] = 0
 
         # predicted spreads for each game
         predicted_spreads(rtg, week)
