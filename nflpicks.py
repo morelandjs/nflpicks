@@ -41,7 +41,7 @@ class Pickem:
         q.game(season_type='Regular', finished=False)
 
         rating = melo.Rating(obs='score')
-        spreads = defaultdict(defaultdict(lambda: -float('nan')))
+        spreads = defaultdict(dict)
 
         for game in q.as_games():
             year = game.season_year
@@ -68,7 +68,7 @@ class Pickem:
         return points
 
     # picks generator
-    def make_picks(self, picked, npicks=1000):
+    def make_picks(self, picked, npicks=10**4):
         # teams that are available 
         teams_avail = list(self.teams - set(picked))
         weeks_left = self.weeks_left()
@@ -86,7 +86,6 @@ class Pickem:
             x = float(step)/float(npicks/2)
             T = max((1. - x)*5., 1e-12)
             new_picks = list(picks)
-            print(new_picks)
 
             # choose random week and corresponding team
             i1 = random.randrange(weeks_left)
@@ -100,25 +99,29 @@ class Pickem:
             # set first week's new team
             new_picks[i1] = team2
 
-            # compute spreads
-            ts = self.total_spread(picks)
-            new_ts = total_spread(new_picks)
-
             # MCMC step
             # note: the "or" short-circuits so if new_ts > ts then the
             # exp() > random is not evaluated
-            if new_ts > ts or exp((new_ts - ts)/T) > random.random():
-                picks = new_picks
+            try:
+                ts, new_ts = [
+                        self.total_spread(p)
+                        for p in (picks, new_picks)
+                        ]
+                if new_ts > ts or exp((new_ts - ts)/T) > random.random():
+                    picks = new_picks
+            except KeyError:
+                pass
 
             yield picks
+
 
 def main():
     picked = []
 
     rating = melo.Rating(obs='score')
     pickem = Pickem(2017)
-    for pick in pickem.make_picks(picked):
-        print(pick)
+    #for pick in pickem.make_picks(picked):
+    #    print(pick)
     ## global meta data
     #npicks = int(2e6)
 
