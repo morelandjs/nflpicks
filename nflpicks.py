@@ -15,12 +15,12 @@ import melo
 
 class Pickem:
     def __init__(self, season=2017, next_week=1, mcmc_steps=10**5):
-        self.season = season
+        self.year = season
         self.next_week = next_week
         self.mcmc_steps = mcmc_steps
         self.nfldb = nfldb.connect()
         self.teams = self.league(season)
-        self.spreads = self.project_spreads()
+        self.spreads = self.game_spreads()
 
     def league(self, season):
         """
@@ -39,7 +39,7 @@ class Pickem:
 
         return teams
 
-    def project_spreads(self):
+    def game_spreads(self):
         """
         Predict the spreads for all future matchups in the season.
         Returns a nested Python dictionary, e.g. spreads[week][team] = -7
@@ -48,37 +48,42 @@ class Pickem:
         # calculate spreads using margin-dependent ELO library
         rating = melo.Rating(obs='score')
        
-        # initialize spreads to -inf; used to avoid bye-weeks
+        # initialize spreads
         spreads = defaultdict(
                 lambda: defaultdict(
-                    lambda: -float('inf')
+                    lambda: {'pred': -float('inf'), 'obs': 0}
                     )
                 )
 
         # query all remaining games in the present season
         q = nfldb.Query(self.nfldb)
-        q.game(season_year=self.season, week__ge=self.next_week,
+        q.game(season_year=self.year, week__ge=self.next_week,
                 season_type='Regular')
 
         # loop over games and calculate the predicted spread
-        for game in q.as_games():
+        for g in q.as_games():
 
             # game year and week
-            year = game.season_year
-            week = game.week
+            year = g.season_year
+            week = g.week
 
             # home team and away team
-            home = game.home_team
-            away = game.away_team
+            home = g.home_team
+            away = g.away_team
+
+            # save observed spreads
+            if g.finished:
+                spreads[week][home]['obs'] = g.home_score - g.away_score 
+                spreads[week][away]['obs'] = g.away_score - g.home_score
 
             # predict spread using margin-dependent ELO
             spread = rating.predict_score(
                     home, away, year, week
                     )
 
-            # save spreads for future look-up
-            spreads[week][home] = spread
-            spreads[week][away] = -spread
+            # save predicted spreads
+            spreads[week][home]['pred'] = spread
+            spreads[week][away]['pred'] = -spread
 
         return spreads
 
@@ -87,10 +92,8 @@ class Pickem:
         Sum the projected spread for all picks
 
         """
-        points = sum(
-                self.spreads[week][team]
-                for week, team in enumerate(picks, start=self.next_week)
-                )
+        points = sum(self.spreads[week][team]['pred']
+                for week, team in enumerate(picks, start=self.next_week))
 
         return points
 
@@ -144,18 +147,20 @@ class Pickem:
             if new_ts > ts or exp((new_ts - ts)/T) > random.random():
                 picks = new_picks
 
-            yield picks
+            yield list(enumerate(picks, start=self.next_week))
 
     def output(self, picks):
-        # unpack data
-        teams = picks
-        weeks = np.arange(1, 18)
-        #weeks, teams = zip(*picks)
+        """
+        Nicely format picks and print to standard out
 
-        pred = [int(self.spreads[week][pick])
-                for week, pick in enumerate(picks, start=1)]
-        #obs = [int(self.observe(pick)) for pick in picks]
-        obs = pred
+        """
+        # weeks and teams
+        weeks, teams = zip(*picks)
+
+        # aggregate spread data for each pick
+        spreads = [self.spreads[week][team] for (week, team) in picks]
+        pred = [int(s['pred']) for s in spreads]
+        obs = [s['obs'] for s in spreads]
         
         # formatting styles
         fmt_week = ' {:03d}' * len(weeks)
@@ -171,7 +176,7 @@ class Pickem:
         week = 'WEEK:' + fmt_week.format(*weeks)
         team = 'PICK:' + fmt_picks.format(*teams) + total
         pred = 'SPRD:' + fmt_spreads.format(*pred) + tot_pred
-        obs = '{}:'.format(self.season) + fmt_spreads.format(*obs) + tot_obs
+        obs = '{}:'.format(self.year) + fmt_spreads.format(*obs) + tot_obs
 
         # print to stdout
         for text in week, team, pred, obs:
@@ -186,14 +191,14 @@ def main():
     parser.add_argument(
             "--season",
             action="store",
-            default=2016,
+            default=2017,
             type=int,
             help="nfl season year"
             )
     parser.add_argument(
             "--mcmc-steps",
             action="store",
-            default=10**5,
+            default=10**6,
             type=int,
             help="markov chain monte carlo steps")
 
@@ -203,8 +208,11 @@ def main():
     """
     Construct a new Pickem season and simulate the season.
     """
+    mypicks = []
+
     pickem = Pickem(**args_dict)
-    for pick in pickem.make_picks():
+
+    for pick in pickem.make_picks(mypicks=mypicks):
         mypicks = pick
 
     pickem.output(mypicks)
