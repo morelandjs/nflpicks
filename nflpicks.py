@@ -14,7 +14,7 @@ import melo
 
 
 class Pickem:
-    def __init__(self, season=2017, next_week=1, mcmc_steps=10**5):
+    def __init__(self, season=2017, next_week=1, mcmc_steps=10**6):
         self.year = season
         self.next_week = next_week
         self.mcmc_steps = mcmc_steps
