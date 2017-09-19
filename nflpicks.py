@@ -14,13 +14,13 @@ import melo
 
 
 class Pickem:
-    def __init__(self, season=2017, next_week=1, mypicks=[],
-            mode='points', mcmc_steps=10**6):
+    def __init__(self, mypicks=[],
+            season=2017, mode='points', mcmc_steps=10**6):
         self.year = season
-        self.next_week = next_week
-        self.mypicks = mypicks
         self.mode = mode
         self.mcmc_steps = mcmc_steps
+        self.next_week = len(mypicks) + 1
+
         self.nfldb = nfldb.connect()
         self.teams = self.league(season)
         self.spreads = self.game_spreads()
@@ -102,7 +102,7 @@ class Pickem:
         for week, team in enumerate(picks, start=self.next_week):
             points = self.spreads[week][team]['pred']
             if week == 17:
-                points *= 0.5
+                points *= 0.6
             total += points
 
         return total
@@ -194,8 +194,6 @@ class Pickem:
 
 
 def main():
-    mypicks = ['ATL', 'BAL']
-
     """
     Define command line arguments. 
     """
@@ -205,7 +203,7 @@ def main():
             nargs='*',
             action="store",
             default=[],
-            type=list,
+            type=str,
             help="list of team picks"
             )
     parser.add_argument(
@@ -214,13 +212,6 @@ def main():
             default=2017,
             type=int,
             help="NFL season year"
-            )
-    parser.add_argument(
-            "--next-week",
-            action="store",
-            default=1,
-            type=int,
-            help="NFL season week"
             )
     parser.add_argument(
             "--mcmc-steps",
@@ -243,7 +234,7 @@ def main():
     """
     pickem = Pickem(**args_dict)
 
-    for pick in pickem.make_picks(mypicks=mypicks):
+    for pick in pickem.make_picks(mypicks=args_dict['mypicks']):
         mypicks = pick
 
     pickem.output(mypicks)
