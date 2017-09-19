@@ -14,9 +14,12 @@ import melo
 
 
 class Pickem:
-    def __init__(self, season=2017, next_week=1, mcmc_steps=10**6):
+    def __init__(self, season=2017, next_week=1, mypicks=[],
+            mode='points', mcmc_steps=10**6):
         self.year = season
         self.next_week = next_week
+        self.mypicks = mypicks
+        self.mode = mode
         self.mcmc_steps = mcmc_steps
         self.nfldb = nfldb.connect()
         self.teams = self.league(season)
@@ -46,7 +49,7 @@ class Pickem:
 
         """
         # calculate spreads using margin-dependent ELO library
-        rating = melo.Rating(obs='score')
+        rating = melo.Rating(mode=self.mode)
        
         # initialize spreads
         spreads = defaultdict(
@@ -73,8 +76,8 @@ class Pickem:
 
             # save observed spreads
             if g.finished:
-                spreads[week][home]['obs'] = g.home_score - g.away_score 
-                spreads[week][away]['obs'] = g.away_score - g.home_score
+                spreads[week][home]['obs'] = rating.point_diff(g) 
+                spreads[week][away]['obs'] = -rating.point_diff(g)
 
             # predict spread using margin-dependent ELO
             spread = rating.predict_score(
@@ -95,7 +98,14 @@ class Pickem:
         points = sum(self.spreads[week][team]['pred']
                 for week, team in enumerate(picks, start=self.next_week))
 
-        return points
+        total = 0
+        for week, team in enumerate(picks, start=self.next_week):
+            points = self.spreads[week][team]['pred']
+            if week == 17:
+                points *= 0.5
+            total += points
+
+        return total
 
     def make_picks(self, mypicks=[]):
         """
@@ -184,16 +194,33 @@ class Pickem:
 
 
 def main():
+    mypicks = ['ATL', 'BAL']
+
     """
     Define command line arguments. 
     """
     parser = argparse.ArgumentParser()
     parser.add_argument(
+            "--mypicks",
+            nargs='*',
+            action="store",
+            default=[],
+            type=list,
+            help="list of team picks"
+            )
+    parser.add_argument(
             "--season",
             action="store",
             default=2017,
             type=int,
-            help="nfl season year"
+            help="NFL season year"
+            )
+    parser.add_argument(
+            "--next-week",
+            action="store",
+            default=1,
+            type=int,
+            help="NFL season week"
             )
     parser.add_argument(
             "--mcmc-steps",
@@ -201,6 +228,12 @@ def main():
             default=10**6,
             type=int,
             help="markov chain monte carlo steps")
+    parser.add_argument(
+            "--mode",
+            action="store",
+            default="points",
+            type=str,
+            help="point or yard projections")
 
     args = parser.parse_args()
     args_dict = vars(args)
@@ -208,8 +241,6 @@ def main():
     """
     Construct a new Pickem season and simulate the season.
     """
-    mypicks = []
-
     pickem = Pickem(**args_dict)
 
     for pick in pickem.make_picks(mypicks=mypicks):
