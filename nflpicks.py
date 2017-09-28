@@ -15,15 +15,33 @@ import melo
 
 class Pickem:
     def __init__(self, mypicks=[],
-            season=2017, mode='points', mcmc_steps=10**6):
+            season=2017, obs='points', mcmc_steps=10**6):
         self.year = season
-        self.mode = mode
+        self.obs = obs
         self.mcmc_steps = mcmc_steps
         self.next_week = len(mypicks) + 1
 
         self.nfldb = nfldb.connect()
         self.teams = self.league(season)
         self.spreads = self.game_spreads()
+
+
+    def score(self, team, year, week):
+        """
+        Return the score for a team in given year, week
+
+        """
+        team = nfldb.standard_team(team)
+
+        q = nfldb.Query(self.nfldb)
+        q.game(season_type='Regular', season_year=year, week=week,
+                finished=True, team=team)
+
+        for g in q.as_games():
+            points = g.home_score - g.away_score
+            return points if team == g.home_team else -points
+
+        return 0
 
     def league(self, season):
         """
@@ -49,7 +67,7 @@ class Pickem:
 
         """
         # calculate spreads using margin-dependent ELO library
-        rating = melo.Rating(mode=self.mode)
+        rating = melo.Rating(obs=self.obs)
        
         # initialize spreads
         spreads = defaultdict(
@@ -164,13 +182,16 @@ class Pickem:
         Nicely format picks and print to standard out
 
         """
+
         # weeks and teams
         weeks, teams = zip(*picks)
 
         # aggregate spread data for each pick
         spreads = [self.spreads[week][team] for (week, team) in picks]
         pred = [int(s['pred']) for s in spreads]
-        obs = [s['obs'] for s in spreads]
+
+        # rating instance for game scores
+        obs = [self.score(team, self.year, week) for (week, team) in picks]
         
         # formatting styles
         fmt_week = ' {:03d}' * len(weeks)
@@ -220,7 +241,7 @@ def main():
             type=int,
             help="markov chain monte carlo steps")
     parser.add_argument(
-            "--mode",
+            "--obs",
             action="store",
             default="points",
             type=str,
