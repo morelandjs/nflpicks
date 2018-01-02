@@ -14,10 +14,8 @@ import melo
 
 
 class Pickem:
-    def __init__(self, mypicks=[],
-            season=2017, obs='points', mcmc_steps=10**6):
+    def __init__(self, mypicks=[], season=2017, mcmc_steps=10**6):
         self.year = season
-        self.obs = obs
         self.mcmc_steps = mcmc_steps
         self.next_week = len(mypicks) + 1
 
@@ -67,7 +65,7 @@ class Pickem:
 
         """
         # calculate spreads using margin-dependent ELO library
-        rating = melo.Rating(obs=self.obs)
+        rating = melo.Rating()
        
         # initialize spreads
         spreads = defaultdict(
@@ -94,8 +92,8 @@ class Pickem:
 
             # save observed spreads
             if g.finished:
-                spreads[week][home]['obs'] = rating.point_diff(g) 
-                spreads[week][away]['obs'] = -rating.point_diff(g)
+                spreads[week][home]['obs'] = rating.points(g) 
+                spreads[week][away]['obs'] = -rating.points(g)
 
             # predict spread using margin-dependent ELO
             spread = rating.predict_score(
@@ -240,12 +238,6 @@ def main():
             default=10**6,
             type=int,
             help="markov chain monte carlo steps")
-    parser.add_argument(
-            "--obs",
-            action="store",
-            default="points",
-            type=str,
-            help="point or yard projections")
 
     args = parser.parse_args()
     args_dict = vars(args)
