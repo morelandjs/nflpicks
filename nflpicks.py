@@ -10,7 +10,7 @@ import numpy as np
 from tqdm import tqdm
 from termcolor import colored
 
-import melo
+from melo_nfl import nfl_spreads
 
 
 class Pickem:
@@ -64,9 +64,6 @@ class Pickem:
         Returns a nested Python dictionary, e.g. spreads[week][team] = -7
 
         """
-        # calculate spreads using margin-dependent ELO library
-        rating = melo.Rating()
-       
         # initialize spreads
         spreads = defaultdict(
                 lambda: defaultdict(
@@ -87,18 +84,17 @@ class Pickem:
             week = g.week
 
             # home team and away team
+            time = g.start_time
             home = g.home_team
             away = g.away_team
 
             # save observed spreads
             if g.finished:
-                spreads[week][home]['obs'] = rating.points(g) 
+                spreads[week][home]['obs'] = rating.points(g)
                 spreads[week][away]['obs'] = -rating.points(g)
 
             # predict spread using margin-dependent ELO
-            spread = rating.predict_score(
-                    home, away, year, week
-                    )
+            spread = nfl_spreads.predict_mean(time, home, away)
 
             # save predicted spreads
             spreads[week][home]['pred'] = spread
@@ -128,7 +124,7 @@ class Pickem:
         Perform Markov-chain Monte Carlo to optimize future picks
 
         """
-        # teams that are available 
+        # teams that are available
         teams_avail = list(set(self.teams) - set(mypicks))
         weeks_left = 18 - self.next_week
 
