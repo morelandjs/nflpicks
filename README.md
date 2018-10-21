@@ -1,7 +1,7 @@
 Pickem
 ======
 
-This script uses a [Metropolis-Hastings](https://en.wikipedia.org/wiki/Metropolis%E2%80%93Hastings_algorithm) algorithm to optimize a set of picks for the [NFL pick'em game](www.nflmargins.com).
+This script uses a [Metropolis-Hastings](https://en.wikipedia.org/wiki/Metropolis%E2%80%93Hastings_algorithm) algorithm to optimize a set of picks for the [NFL pick'em game](https://nflmargins.com/).
 
 The game has a simple set of rules:
 
