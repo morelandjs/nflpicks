@@ -17,7 +17,7 @@ def mcmc_sample(games, steps=10000):
     """
     # total expected score
     def total(picks):
-        return sum(df.at[t, w] for t, w in zip(picks, games.columns))
+        return sum(games.at[t, w] for t, w in zip(picks, games.columns))
 
     # initialize random picks
     while True:
@@ -126,6 +126,14 @@ if __name__ == "__main__":
     for week, pick in enumerate(picks, start=1):
         df = df.drop(pick, axis=0)
         df = df.drop(week, axis=1)
+
+    # enter vegas lines in place of model
+    df.at['KC', 10] = 17
+    df.at['ARI', 10] = -17
+    df.at['OAK', 10] = -10
+    df.at['LAC', 10] = 10
+    df.at['NYJ', 10] = 7.5
+    df.at['BUF', 10] = -7.5
 
     # perform markob chain monte carlo
     for pick in mcmc_sample(df, steps=steps):
