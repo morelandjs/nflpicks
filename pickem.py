@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python2.7
 
 import argparse
 from math import exp
@@ -6,22 +6,29 @@ import random
 
 import pandas as pd
 import nfldb
+import numpy as np
 
 from melo_nfl import nfl_spreads
 
 
-def mcmc_sample(games, steps=10000):
+def mcmc_sample(games, decay=100000, steps=100000):
     """
     Perform Markov-chain Monte Carlo to optimize future picks
 
     """
+    weeks = games.columns
+
     # total expected score
     def total(picks):
-        return sum(games.at[t, w] for t, w in zip(picks, games.columns))
+        score = 0
+        for dw, (team, week) in enumerate(zip(picks, weeks)):
+            score += exp(-dw/decay) * games.at[team, week]
+
+        return score
 
     # initialize random picks
     while True:
-        picks = random.sample(games.index, games.columns.size)
+        picks = random.sample(games.index, weeks.size)
         if total(picks) != -float('inf'):
             break
 
@@ -33,13 +40,13 @@ def mcmc_sample(games, steps=10000):
 
         # annealing temperature
         x = step/float(steps)
-        T = 5*(1. - x) + TINY
+        T = 20*(1. - x) + TINY
 
         # initialize new picks
         new_picks = list(picks)
 
         # choose random week and corresponding team
-        i1 = random.randrange(games.columns.size)
+        i1 = random.randrange(weeks.size)
         team1 = picks[i1]
 
         # choose second team and swap if necessary
@@ -63,6 +70,111 @@ def mcmc_sample(games, steps=10000):
         yield picks
 
 
+def simulate_season(season_year, decay=1000, steps=100000):
+    """
+    Simulates the NFL pickem game for an entire NFL season
+
+    """
+    def pick_gen(week=1, picked=[]):
+
+        # exit generator
+        if week > 17:
+            raise StopIteration
+
+        # import nfl game data
+        db = nfldb.connect()
+
+        # prediction time
+        q = nfldb.Query(db)
+        q.game(season_type='Regular', season_year=season_year, week=week)
+        time = min([g.start_time for g in q.as_games()]).replace(tzinfo=None)
+
+        # query all games
+        q = nfldb.Query(db)
+        q.game(season_type='Regular', season_year=season_year, week__ge=week)
+
+        # model predictions
+        predictions = pd.DataFrame(
+            data=-float('inf'),
+            index=nfl_spreads.labels,
+            columns=range(week, 18)
+        )
+
+        # game outcomes
+        outcomes = pd.DataFrame(
+            data=0,
+            index=nfl_spreads.labels,
+            columns=range(week, 18)
+        )
+
+        # predict every game of the season
+        for g in sorted(q.as_games(), key=lambda g: g.start_time):
+            home = g.home_team
+            away = g.away_team
+
+            pred_points = nfl_spreads.median(time, home, away)
+            predictions.at[home, g.week] = pred_points
+            predictions.at[away, g.week] = -pred_points
+
+            points = g.home_score - g.away_score
+            outcomes.at[home, g.week] = points
+            outcomes.at[away, g.week] = -points
+
+        print(predictions)
+
+        # exclude teams that have been picked
+        for pick in picked:
+            predictions = predictions.drop(pick, axis=0, errors='ignore')
+
+        # perform markov chain monte carlo
+        for picks in mcmc_sample(predictions, decay=decay, steps=steps):
+            best_picks = picks
+
+        yield best_picks[0], outcomes.at[best_picks[0], week]
+
+        # there's no yield from in python2
+        for next_pick in pick_gen(week + 1, picked + best_picks[:1]):
+            yield next_pick
+
+    picks = list(pick_gen(week=1))
+    teams, points = zip(*picks)
+    print(teams, points)
+
+    return teams, sum(points)
+
+#simulate_season(2018, decay=1000, steps=100000)
+#quit()
+
+
+def loss(halflife):
+
+    db = nfldb.connect()
+
+    residuals = []
+
+    for season_year in range(2010, 2019):
+        q = nfldb.Query(db)
+        q.game(season_type='Regular', season_year=season_year, finished=True)
+        games = q.as_games()
+
+        for pair in np.random.choice(games, size=(100000, 2), replace=True):
+            prev, now = sorted(pair, key=lambda g: g.start_time)
+
+            elapsed = (now.start_time - prev.start_time).total_seconds()
+            elapsed /= (60 * 60 * 24 * 7)
+
+            time = prev.start_time.replace(tzinfo=None)
+            home = now.home_team
+            away = now.away_team
+
+            pred_spread = .5**(elapsed/halflife) * nfl_spreads.median(time, home, away)
+            true_spread = now.home_score - now.away_score
+
+            residuals.append(true_spread - pred_spread)
+
+    return halflife, np.abs(residuals).mean()
+
+
 if __name__ == "__main__":
     """
     Optimize 'Pickem' over an entire NFL season.
@@ -81,14 +193,14 @@ if __name__ == "__main__":
     parser.add_argument(
             "--season",
             action="store",
-            default=2018,
+            default=2019,
             type=int,
             help="nfl season year"
             )
     parser.add_argument(
             "--steps",
             action="store",
-            default=10**6,
+            default=10**3,
             type=int,
             help="markov chain monte carlo steps")
 
@@ -117,7 +229,7 @@ if __name__ == "__main__":
         week = g.week
         home = g.home_team
         away = g.away_team
-        score = nfl_spreads.mean(time, home, away)
+        score = nfl_spreads.median(time, home, away)
 
         df.at[home, week] = score
         df.at[away, week] = -score
@@ -128,16 +240,18 @@ if __name__ == "__main__":
         df = df.drop(week, axis=1)
 
     # enter vegas lines in place of model
-    df.at['KC', 10] = 17
-    df.at['ARI', 10] = -17
-    df.at['OAK', 10] = -10
-    df.at['LAC', 10] = 10
-    df.at['NYJ', 10] = 7.5
-    df.at['BUF', 10] = -7.5
+    # df.at['JAC', 15] = 7
+    # df.at['WAS', 15] = -7
 
-    # perform markob chain monte carlo
+    # perform markov chain monte carlo
     for pick in mcmc_sample(df, steps=steps):
         mypicks = pick
 
     print(df)
     print(mypicks)
+
+    score = sum([
+        df.at[pick, week]
+        for week, pick in enumerate(mypicks, start=1)
+    ])
+    print(score)
