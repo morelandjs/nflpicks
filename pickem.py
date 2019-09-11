@@ -1,14 +1,17 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3
 
 import argparse
 from math import exp
 import random
 
-import pandas as pd
-import nfldb
+import nflgame
 import numpy as np
+import pandas as pd
 
-from melo_nfl import nfl_spreads
+from nflmodel import model, data
+
+
+nfl_spreads = model.MeloNFL.from_cache('spread')
 
 
 def mcmc_sample(games, decay=100000, steps=100000):
@@ -81,17 +84,13 @@ def simulate_season(season_year, decay=1000, steps=100000):
         if week > 17:
             raise StopIteration
 
-        # import nfl game data
-        db = nfldb.connect()
-
         # prediction time
-        q = nfldb.Query(db)
-        q.game(season_type='Regular', season_year=season_year, week=week)
-        time = min([g.start_time for g in q.as_games()]).replace(tzinfo=None)
+        games = nflgame.games(season_year, week=week, kind='REG')
+        time = min([g.eid for g in games]).replace(tzinfo=None)
 
         # query all games
-        q = nfldb.Query(db)
-        q.game(season_type='Regular', season_year=season_year, week__ge=week)
+        games = nflgame.games(
+            season_type='Regular', season_year=season_year, week__ge=week)
 
         # model predictions
         predictions = pd.DataFrame(
@@ -108,7 +107,7 @@ def simulate_season(season_year, decay=1000, steps=100000):
         )
 
         # predict every game of the season
-        for g in sorted(q.as_games(), key=lambda g: g.start_time):
+        for g in sorted(games, key=lambda g: g.start_time):
             home = g.home_team
             away = g.away_team
 
@@ -207,14 +206,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
     args_dict = vars(args)
 
+    # parse args
     picks = args_dict['picked']
     season = args_dict['season']
     steps = args_dict['steps']
-
-    # import nfl game data
-    db = nfldb.connect()
-    q = nfldb.Query(db)
-    q.game(season_type='Regular', season_year=season)
 
     # initialize pandas dataframe
     df = pd.DataFrame(
@@ -224,12 +219,14 @@ if __name__ == "__main__":
     )
 
     # predict every game of the season
-    for g in q.as_games():
-        time = g.start_time.replace(tzinfo=None)
-        week = g.week
-        home = g.home_team
-        away = g.away_team
-        score = nfl_spreads.median(time, home, away)
+    for g in nflgame._search_schedule(season, kind='REG'):
+        eid = g['eid']
+        week = g['week']
+        home = g['home']
+        away = g['away']
+
+        date = '-'.join([eid[:4], eid[4:6], eid[6:8]])
+        score = nfl_spreads.median(date, home, away)
 
         df.at[home, week] = score
         df.at[away, week] = -score
